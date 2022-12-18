@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -42,6 +43,12 @@ namespace GraphQLinq
                         {
                             var selectField = BuildMemberAccessSelectClause(argument, selectClause, padding, argument.Member.Name);
                             fields.Add(selectField);
+                        }
+
+                        foreach (var argument in newExpression.Arguments.OfType<MethodCallExpression>())
+                        {
+                            var selectQuery = BuildMemberAccessSelectClauseForNestedQueries(argument, selectClause, padding, out _);
+                            fields.Add(selectQuery);
                         }
                         selectClause = string.Join(Environment.NewLine, fields);
                         break;
@@ -109,13 +116,111 @@ namespace GraphQLinq
                     }
                     else
                     {
-                        selectClause = $"{member.Name.ToCamelCase()} {{ {Environment.NewLine}{selectClause}}}";
+                        selectClause = $"{member.Name.ToCamelCase()} {{ {Environment.NewLine}{selectClause}{Environment.NewLine}}}";
                     }
                     return BuildMemberAccessSelectClause(memberExpression.Expression, selectClause, padding, "");
                 }
                 return selectClause;
             }
             return selectClause;
+        }
+
+        private static string BuildMemberAccessSelectClauseForNestedQueries(Expression body, string selectClause,
+            string padding, out string aliasName)
+        {
+            switch (body)
+            {
+                case MethodCallExpression methodCallExpression when methodCallExpression.Method.Name.Equals("Select"):
+                    var sMethod =
+                        BuildMemberAccessSelectClauseForNestedQueriesMethodCall(methodCallExpression, "", padding, out var alias);
+                    aliasName = alias;
+                    selectClause = $"{selectClause}{(!string.IsNullOrEmpty(selectClause) ? Environment.NewLine : string.Empty)}{sMethod}";
+                    return selectClause;
+                case NewExpression newExpression:
+                    var nMethod =
+                        BuildMemberAccessSelectClauseForNestedQueriesNew(newExpression, "", padding, out var nAlias);
+                    aliasName = nAlias;
+                    selectClause = $"{selectClause}{(!string.IsNullOrEmpty(selectClause) ? Environment.NewLine : string.Empty)}{nMethod}";
+                    return selectClause;
+                case MemberExpression memberExpression:
+                    var s=
+                        BuildMemberAccessSelectClauseForNestedQueriesMember(memberExpression, "", padding, memberExpression.Member.Name);
+                    aliasName = memberExpression.Member.Name;
+                    selectClause = $"{selectClause}{(!string.IsNullOrEmpty(selectClause) ? Environment.NewLine : string.Empty)}{s}";
+                    return selectClause;
+                default:
+                    throw new NotSupportedException($"Selector of type {body.NodeType} is not implemented yet");
+            }
+        }
+
+        public static string BuildMemberAccessSelectClauseForNestedQueriesMethodCall(MethodCallExpression body,
+            string selectClause, string padding, out string alias)
+        {
+            var typeMember = body.Arguments.OfType<MemberExpression>().First();
+            alias = typeMember.Member.Name;
+            if (body.Method.Name.Equals("Select")) // Only select quires are supported now
+            {
+                foreach (var lambdaExpression in body.Arguments.OfType<LambdaExpression>())
+                {
+                    var a = typeMember.Member.Name;
+                    var s = BuildMemberAccessSelectClauseForNestedQueries(lambdaExpression.Body, "", padding, out a);
+                    selectClause = $"{selectClause}{(!string.IsNullOrEmpty(selectClause) ? Environment.NewLine : string.Empty)}{s}";
+                }
+                return BuildMemberAccessSelectClause(
+                    typeMember, selectClause,
+                    padding, "");
+            }
+            return selectClause;
+        }
+
+        private static string BuildMemberAccessSelectClauseForNestedQueriesMember(MemberExpression body, string selectClause,
+            string padding, string alias)
+        {
+            return BuildMemberAccessSelectClause(body, "", padding, alias);
+        }
+
+        private static string BuildMemberAccessSelectClauseForNestedQueriesNew(NewExpression body, string selectClause,
+            string padding, out string alias)
+        {
+            alias = body.Members?.FirstOrDefault()?.Name;
+            var tempFields = new List<(string key, string value)>();
+
+            foreach (var bodyArgument in body.Arguments)
+            {
+                var s = BuildMemberAccessSelectClauseForNestedQueries(bodyArgument, string.Empty, padding, out var elementAlias);
+
+                tempFields.Add((elementAlias, s));
+            }
+
+            // Quick and diry solution to support multiple selects on same type
+            // Does not check if fields are duplicated
+            var lookup = tempFields.ToLookup(f => f.key, f => f.value);
+            var fields = new List<string>();
+            foreach (var l in lookup)
+            {
+                var left = l.First();
+                foreach (var r in l.Skip(1))
+                {
+                    left = Merge(left, r);
+                }
+                fields.Add(left);
+            }
+
+            selectClause = $"{selectClause}{(!string.IsNullOrEmpty(selectClause) ? Environment.NewLine : string.Empty)}{string.Join(Environment.NewLine, fields)}";
+
+            return selectClause;
+        }
+
+        private static string Merge(string left, string right) 
+        {
+            var closingBracket = "}";
+            var indexOfLastBracketLeft = left.LastIndexOf(closingBracket);
+            var indexOfFirstNewLineRight = right.IndexOf(Environment.NewLine) + Environment.NewLine.Length;
+            var indexOfLastBracketRight = right.LastIndexOf(closingBracket) - indexOfFirstNewLineRight;
+            right = right.Remove(0, indexOfFirstNewLineRight).Remove(indexOfLastBracketRight, 1);
+            left = left.Insert(indexOfLastBracketLeft, right);
+
+            return left;
         }
 
         private static string BuildSelectClauseForType(Type targetType, int depth = 1)
