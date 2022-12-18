@@ -116,14 +116,15 @@ namespace GraphQLinq.Scaffolding
                 new Option<string>(new []{ "--output", "-o" }, () => "", "Output folder"),
                 new Option<string>(new []{ "--namespace", "-n" }, () => "","Namespace of generated classes"),
                 new Option<string>(new []{ "--context", "-c" }, () => "Query","Name of the generated context classes"),
+                new Option<bool>(new []{ "--normalize", "-a" }, () => true,"Normalize casing (PascalCase)"),
             };
 
-            generate.Handler = CommandHandler.Create<Uri, string, string, string, IConsole>(HandleGenerate);
+            generate.Handler = CommandHandler.Create<Uri, string, string, string, bool, IConsole>(HandleGenerate);
 
             await generate.InvokeAsync(args);
         }
 
-        private static async Task HandleGenerate(Uri endpoint, string output, string @namespace, string context, IConsole console)
+        private static async Task HandleGenerate(Uri endpoint, string output, string @namespace, string context, bool normalize, IConsole console)
         {
             //var webClient = new WebClient();
             //webClient.Headers.Add("Content-Type", "application/json");
@@ -152,7 +153,7 @@ namespace GraphQLinq.Scaffolding
                 var codeGenerationOptions = new CodeGenerationOptions
                 {
                     Namespace = @namespace,
-                    NormalizeCasing = true,
+                    NormalizeCasing = normalize,
                     OutputDirectory = outputFolder,
                     ContextName = context
                 };
