@@ -1,12 +1,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -21,7 +19,7 @@ namespace GraphQLinq
         internal const string QueryExtensionsTypeName = "QueryExtensions";
 
         private static GraphContext _context;
-        private static Dictionary<string, object> queryVariables;
+        private static List<KeyValuePair<string, object>> additionalArguments;
 
         public GraphQLQuery BuildQuery(GraphQuery<T> graphQuery, List<IncludeDetails> includes)
         {
@@ -29,7 +27,7 @@ namespace GraphQLinq
             var selectClause = "";
 
             var passedArguments = graphQuery.Arguments.Where(pair => pair.Value != null).ToList();
-            queryVariables = passedArguments.ToDictionary(pair => pair.Key, pair => pair.Value);
+            var queryVariables = passedArguments.ToDictionary(pair => pair.Key, pair => pair.Value);
 
             if (graphQuery.Selector != null)
             {
@@ -180,9 +178,6 @@ namespace GraphQLinq
                         genericType = returnType;
                     }
 
-                    var baseMethod = typeof(QueryBuilders)
-                        .GetMethod(nameof(QueryBuilders.BuildCollectionQuery));
-
                     var parameterObjects = new List<object>();
 
                     foreach (var parameter in parameters)
@@ -204,33 +199,26 @@ namespace GraphQLinq
                         }
                     }
 
-                    var genericMethod = baseMethod?.MakeGenericMethod(genericType);
-                    var result = genericMethod?.Invoke(null, new object[] { _context, parameterObjects.ToArray(), genericType.Name.ToLower() } );
-                    var r = (GraphCollectionQuery<object>)result;
+                    var buildCollectionQueryBaseMethod = typeof(QueryBuilders)
+                        .GetMethod(nameof(QueryBuilders.BuildCollectionQuery));
+                    var buildCollectionQueryGenericMethod = buildCollectionQueryBaseMethod?.MakeGenericMethod(genericType);
+                    var result = buildCollectionQueryGenericMethod?.Invoke(null, new object[] { _context, parameterObjects.ToArray(), genericType.Name.ToLower() } );
+                    var graphQueryType = typeof(GraphCollectionQuery<>).MakeGenericType(returnType);
 
-                    /*var r = Convert.ChangeType(result, )
-                    returnType.*/
+                    var renameQueryBaseMethod = typeof(QueryBuilders)
+                        .GetMethod(nameof(QueryBuilders.RenameQueryArguments));
+                    var renameQueryGenericMethod = renameQueryBaseMethod?.MakeGenericMethod(genericType);
 
-                    var passedArguments = r.Arguments.Where(pair => pair.Value != null).ToList();
-                    // queryVariables. = passedArguments.ToDictionary(pair => pair.Key, pair => pair.Value);
+                    (string q, List<KeyValuePair<string, object>> arguments) = ((string, List<KeyValuePair<string, object>>))renameQueryGenericMethod?.Invoke(null, new object[] { result, methodName});
 
+                    additionalArguments = arguments;
                     aliasName = string.Empty;
-                    return string.Empty;
+                    selectClause = $"{selectClause}{(!string.IsNullOrEmpty(selectClause) ? Environment.NewLine : string.Empty)}{q}";
+                    return selectClause;
 
                 // Attempt to support subqueries
                 default:
                     throw new NotSupportedException($"Selector of type {body.NodeType} is not implemented yet");
-            }
-        }
-
-        private void RenameQueryArguments(GraphCollectionQuery<object> query, string prefix)
-        {
-            foreach (var qVar in query.QueryVariables)
-            {
-                var key = qVar.Key;
-                var newKey = prefix + qVar.Key;
-
-                // query.Query = query.Query.Replace(key, newKey);
             }
         }
 
@@ -412,6 +400,21 @@ namespace GraphQLinq
             var parameters = context.GetType().GetMethod(queryName, BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.Instance).GetParameters();
             var arguments = parameters.Zip(parameterValues, (info, value) => new { info.Name, Value = value }).ToDictionary(arg => arg.Name, arg => arg.Value);
             return arguments;
+        }
+
+        public static (string query, List<KeyValuePair<string,object>> arguments) RenameQueryArguments<T>(GraphCollectionQuery<T> query, string prefix)
+        {
+            var argumentList = new List<KeyValuePair<string, object>>();
+
+            foreach (var arg in query.Arguments.Where(pair => pair.Value != null).ToList())
+            {
+                var newKey = prefix + arg.Key;
+                argumentList.Add(new KeyValuePair<string, object>(newKey, arg.Value));
+            }
+
+            query.Update(argumentList.ToDictionary(d => d.Key, d => d.Value));
+
+            return (query.Query, argumentList);
         }
     }
 

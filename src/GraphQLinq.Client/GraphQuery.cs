@@ -10,7 +10,7 @@ namespace GraphQLinq
     public abstract class GraphQuery<T>
     {
         public readonly GraphContext context;
-        private readonly Lazy<GraphQLQuery> lazyQuery;
+        private Lazy<GraphQLQuery> lazyQuery;
         private readonly GraphQueryBuilder<T> queryBuilder = new GraphQueryBuilder<T>();
 
         internal string QueryName { get; }
@@ -34,6 +34,12 @@ namespace GraphQLinq
         public string Query => lazyQuery.Value.Query;
 
         public IReadOnlyDictionary<string, object> QueryVariables => lazyQuery.Value.Variables;
+
+        public void Update(Dictionary<string, object> newArgument)
+        {
+            Arguments =newArgument;
+            lazyQuery = new Lazy<GraphQLQuery>(() => queryBuilder.BuildQuery(this, Includes));
+        }
 
         protected GraphQuery<TR> Clone<TR>()
         {
