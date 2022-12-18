@@ -68,10 +68,10 @@ namespace GraphQLinq
             return new GraphItemQuery<T, T>(this, queryName) { Arguments = arguments };
         }
 
-        private Dictionary<string, object> BuildDictionary(object[] parameterValues, string queryName)
+        private Dictionary<string, (string alternateKey, object value)> BuildDictionary(object[] parameterValues, string queryName)
         {
             var parameters = GetType().GetMethod(queryName, BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.Instance).GetParameters();
-            var arguments = parameters.Zip(parameterValues, (info, value) => new { info.Name, Value = value }).ToDictionary(arg => arg.Name, arg => arg.Value);
+            var arguments = parameters.Zip(parameterValues, (info, value) => new { info.Name, Value = value }).ToDictionary(arg => arg.Name, arg => ("", arg.Value));
             return arguments;
         }
 

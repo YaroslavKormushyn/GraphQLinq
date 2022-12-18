@@ -13,10 +13,10 @@ namespace GraphQLinq
         private Lazy<GraphQLQuery> lazyQuery;
         private readonly GraphQueryBuilder<T> queryBuilder = new GraphQueryBuilder<T>();
 
-        internal string QueryName { get; }
+        internal string QueryName { get; private set; }
         internal LambdaExpression Selector { get; private set; }
         internal List<IncludeDetails> Includes { get; private set; } = new List<IncludeDetails>();
-        internal Dictionary<string, object> Arguments { get; set; } = new Dictionary<string, object>();
+        internal Dictionary<string,(string alternateKey,object value)> Arguments { get; set; } = new Dictionary<string, (string,object)>();
 
         internal GraphQuery(GraphContext graphContext, string queryName)
         {
@@ -35,8 +35,9 @@ namespace GraphQLinq
 
         public IReadOnlyDictionary<string, object> QueryVariables => lazyQuery.Value.Variables;
 
-        public void Update(Dictionary<string, object> newArgument)
+        public void Update(Dictionary<string, (string, object)> newArgument, string queryName)
         {
+            QueryName = queryName;
             Arguments =newArgument;
             lazyQuery = new Lazy<GraphQLQuery>(() => queryBuilder.BuildQuery(this, Includes));
         }
@@ -119,7 +120,7 @@ namespace GraphQLinq
                     {
                         Argument = argument,
                         parameter.Name
-                    }).Skip(1).ToDictionary(arg => arg.Name, arg => (arg.Argument as ConstantExpression).Value);
+                    }).Skip(1).ToDictionary(arg => arg.Name, arg => ("", (arg.Argument as ConstantExpression).Value));
 
                     var result = new IncludeDetails { Path = path };
                     result.MethodIncludes.Add(new IncludeMethodDetails
@@ -259,7 +260,7 @@ namespace GraphQLinq
     class IncludeMethodDetails
     {
         public MethodInfo Method { get; set; }
-        public Dictionary<string, object> Parameters { get; set; }
+        public Dictionary<string, (string alternateKey, object value)> Parameters { get; set; }
 
         public override string ToString()
         {

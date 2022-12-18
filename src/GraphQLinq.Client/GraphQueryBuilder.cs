@@ -19,15 +19,17 @@ namespace GraphQLinq
         internal const string QueryExtensionsTypeName = "QueryExtensions";
 
         private static GraphContext _context;
-        private static List<KeyValuePair<string, object>> additionalArguments;
+
+        private static List<KeyValuePair<string, (string alternateKey, object value)>>
+            additionalArguments = new List<KeyValuePair<string, (string alternateKey, object value)>>();
 
         public GraphQLQuery BuildQuery(GraphQuery<T> graphQuery, List<IncludeDetails> includes)
         {
             _context = graphQuery.context;
             var selectClause = "";
 
-            var passedArguments = graphQuery.Arguments.Where(pair => pair.Value != null).ToList();
-            var queryVariables = passedArguments.ToDictionary(pair => pair.Key, pair => pair.Value);
+            var passedArguments = graphQuery.Arguments.Where(pair => pair.Value.value!= null).ToList();
+            var queryVariables = passedArguments.ToDictionary(pair => pair.Key, pair => pair.Value.value);
 
             if (graphQuery.Selector != null)
             {
@@ -78,14 +80,20 @@ namespace GraphQLinq
 
                 foreach (var item in select.IncludeArguments)
                 {
-                    queryVariables.Add(item.Key, item.Value);
+                    queryVariables.Add(item.Key, item.Value.value);
                 }
             }
 
             var isScalarQuery = string.IsNullOrEmpty(selectClause);
             selectClause = Environment.NewLine + selectClause + Environment.NewLine;
 
-            var queryParameters = passedArguments.Any() ? $"({string.Join(", ", passedArguments.Select(pair => $"{pair.Key}: ${pair.Key}"))})" : "";
+            var combinedArguments = new List<KeyValuePair<string, (string alternateKey, object value)>>();
+            combinedArguments.AddRange(passedArguments);
+            combinedArguments.AddRange(additionalArguments);
+
+            queryVariables = combinedArguments.ToDictionary(pair => pair.Key, pair => pair.Value.value);
+
+            var queryParameters = passedArguments.Any() ? $"({string.Join(", ", passedArguments.Select(pair => $"{(!string.IsNullOrEmpty(pair.Value.alternateKey)? pair.Value.alternateKey: pair.Key)}: ${pair.Key}"))})" : "";
             var queryParameterTypes = queryVariables.Any() ? $"({string.Join(", ", queryVariables.Select(pair => $"${pair.Key}: {pair.Value.GetType().ToGraphQlType()}"))})" : "";
 
             var graphQLQuery = string.Format(isScalarQuery ? ScalarQueryTemplate : QueryTemplate, queryParameterTypes, ResultAlias, graphQuery.QueryName, queryParameters, selectClause);
@@ -209,9 +217,11 @@ namespace GraphQLinq
                         .GetMethod(nameof(QueryBuilders.RenameQueryArguments));
                     var renameQueryGenericMethod = renameQueryBaseMethod?.MakeGenericMethod(genericType);
 
-                    (string q, List<KeyValuePair<string, object>> arguments) = ((string, List<KeyValuePair<string, object>>))renameQueryGenericMethod?.Invoke(null, new object[] { result, methodName});
+                    (string q, List<KeyValuePair<string, (string alternateKey, object value)>> arguments) = ((string, List<KeyValuePair<string, (string alternateKey, object value)>>))renameQueryGenericMethod?.Invoke(null, new object[] { result, methodName});
 
-                    additionalArguments = arguments;
+                    q = q.Remove(0, q.IndexOf(ResultAlias, StringComparison.Ordinal)+ResultAlias.Length+1);
+                    q = q.Remove(q.LastIndexOf("}", StringComparison.Ordinal), 1);
+                    additionalArguments.AddRange( arguments);
                     aliasName = string.Empty;
                     selectClause = $"{selectClause}{(!string.IsNullOrEmpty(selectClause) ? Environment.NewLine : string.Empty)}{q}";
                     return selectClause;
@@ -306,7 +316,7 @@ namespace GraphQLinq
         private static SelectClauseDetails BuildSelectClauseForType(Type targetType, List<IncludeDetails> includes)
         {
             var selectClause = BuildSelectClauseForType(targetType);
-            var includeVariables = new Dictionary<string, object>();
+            var includeVariables = new Dictionary<string, (string alternateKey, object value)>();
 
             for (var index = 0; index < includes.Count; index++)
             {
@@ -319,7 +329,7 @@ namespace GraphQLinq
             return new SelectClauseDetails { SelectClause = selectClause, IncludeArguments = includeVariables };
         }
 
-        private static string BuildSelectClauseForInclude(Type targetType, IncludeDetails includeDetails, Dictionary<string, object> includeVariables, string parameterPrefix = "", int parameterIndex = 0, int depth = 1)
+        private static string BuildSelectClauseForInclude(Type targetType, IncludeDetails includeDetails, Dictionary<string, (string alternateKey, object value)> includeVariables, string parameterPrefix = "", int parameterIndex = 0, int depth = 1)
         {
             var include = includeDetails.Path;
             if (string.IsNullOrEmpty(include))
@@ -347,7 +357,7 @@ namespace GraphQLinq
 
                 propertyType = methodDetails.Method.ReturnType.GetTypeOrListType();
 
-                var includeMethodParams = methodDetails.Parameters.Where(pair => pair.Value != null).ToList();
+                var includeMethodParams = methodDetails.Parameters.Where(pair => pair.Value.value != null).ToList();
                 includeName = methodDetails.Method.Name.ToCamelCase();
 
                 if (includeMethodParams.Any())
@@ -395,24 +405,24 @@ namespace GraphQLinq
             return new GraphItemQuery<T, T>(context, queryName) { Arguments = arguments };
         }
 
-        private static Dictionary<string, object> BuildDictionary(GraphContext context, object[] parameterValues, string queryName)
+        private static Dictionary<string, (string alternateKey, object value)> BuildDictionary(GraphContext context, object[] parameterValues, string queryName)
         {
             var parameters = context.GetType().GetMethod(queryName, BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.Instance).GetParameters();
-            var arguments = parameters.Zip(parameterValues, (info, value) => new { info.Name, Value = value }).ToDictionary(arg => arg.Name, arg => arg.Value);
+            var arguments = parameters.Zip(parameterValues, (info, value) => new { info.Name, Value = value }).ToDictionary(arg => arg.Name, arg => ("", arg.Value));
             return arguments;
         }
 
-        public static (string query, List<KeyValuePair<string,object>> arguments) RenameQueryArguments<T>(GraphCollectionQuery<T> query, string prefix)
+        public static (string query, List<KeyValuePair<string, (string alternateKey, object value)>> arguments) RenameQueryArguments<T>(GraphCollectionQuery<T> query, string prefix)
         {
-            var argumentList = new List<KeyValuePair<string, object>>();
+            var argumentList = new List<KeyValuePair<string, (string alternateKey, object value)>>();
 
-            foreach (var arg in query.Arguments.Where(pair => pair.Value != null).ToList())
+            foreach (var arg in query.Arguments.Where(pair => pair.Value.value != null).ToList())
             {
                 var newKey = prefix + arg.Key;
-                argumentList.Add(new KeyValuePair<string, object>(newKey, arg.Value));
+                argumentList.Add(new KeyValuePair<string, (string alternateKey, object value)>(newKey, (arg.Key, arg.Value.value)));
             }
 
-            query.Update(argumentList.ToDictionary(d => d.Key, d => d.Value));
+            query.Update(argumentList.ToDictionary(d => d.Key, d => d.Value), prefix);
 
             return (query.Query, argumentList);
         }
@@ -435,6 +445,6 @@ namespace GraphQLinq
     class SelectClauseDetails
     {
         public string SelectClause { get; set; }
-        public Dictionary<string, object> IncludeArguments { get; set; }
+        public Dictionary<string, (string alternateKey, object value)> IncludeArguments { get; set; }
     }
 }
