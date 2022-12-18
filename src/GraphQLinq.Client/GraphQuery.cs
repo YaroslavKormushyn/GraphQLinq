@@ -9,7 +9,7 @@ namespace GraphQLinq
 {
     public abstract class GraphQuery<T>
     {
-        private readonly GraphContext context;
+        public readonly GraphContext context;
         private readonly Lazy<GraphQLQuery> lazyQuery;
         private readonly GraphQueryBuilder<T> queryBuilder = new GraphQueryBuilder<T>();
 
