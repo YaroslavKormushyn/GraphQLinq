@@ -250,15 +250,15 @@ namespace GraphQLinq.Scaffolding
                         methodParameters.Add(parameterSyntax);
                     }
 
-                    methodDeclaration = methodDeclaration.AddParameterListParameters(methodParameters.ToArray())
-                                             .WithBody(Block(notImplemented));
-
-                    var returnStatement = ReturnStatement(InvocationExpression(
+                    var returnStatement = ReturnStatement(
                         MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
                                 IdentifierName(identifierName),
                                 IdentifierName(fieldName))
-                            .WithOperatorToken(SyntaxFactory.Token(SyntaxKind.DotToken))));
-                        //.WithArgumentList(ArgumentList(SeparatedList(new List<ArgumentSyntax> { parametersArgument, argumentSyntax }))));
+                            .WithOperatorToken(Token(SyntaxKind.DotToken)));
+
+                    methodDeclaration = methodDeclaration.AddParameterListParameters(methodParameters.ToArray())
+                                             .WithBody(Block(returnStatement));
+
 
                     declaration = declaration.AddMembers(methodDeclaration);
                 }
