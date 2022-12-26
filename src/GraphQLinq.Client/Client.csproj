@@ -28,7 +28,7 @@
       Migrated from WebClient to HttpClient. 
       Migrated from Newtonsoft.Json to System.Text.Json</PackageReleaseNotes>
   </PropertyGroup>
-  <ItemGroup>
+	<ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -48,5 +48,6 @@
       <Pack>True</Pack>
       <PackagePath></PackagePath>
     </None>
+    <None Include="Attributes\GraphQLTypeAttribute.cs" />
   </ItemGroup>
 </Project>

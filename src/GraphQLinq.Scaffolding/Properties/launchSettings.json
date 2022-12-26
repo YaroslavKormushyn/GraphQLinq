@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Scaffolding": {
+      "commandName": "Project",
+      "commandLineArgs": "https://beta.pokeapi.co/graphql/v1beta -o ..\\..\\..\\..\\..\\..\\..\\PokeApiGraphQLinq.ScafoldTest\\Poke -n Poke"
+    }
+  }
+}

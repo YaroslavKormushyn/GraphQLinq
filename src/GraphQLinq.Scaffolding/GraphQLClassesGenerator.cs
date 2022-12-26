@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using System.IO;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Formatting;
+using GraphQLinq.Client.Attributes;
 using Spectre.Console;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
@@ -13,7 +15,7 @@ namespace GraphQLinq.Scaffolding
 {
     class GraphQLClassesGenerator
     {
-        List<string> usings = new() { "System", "System.Collections.Generic" };
+        List<string> usings = new() { "System", "System.Collections.Generic", "GraphQLinq.Client.Attributes" }; // TODO magic strings
 
         private Dictionary<string, string> renamedClasses = new();
         private readonly CodeGenerationOptions options;
@@ -122,8 +124,14 @@ namespace GraphQLinq.Scaffolding
 
             var className = classInfo.Name.NormalizeIfNeeded(options);
 
+            var classAttributeArguments = ParseAttributeArgumentList($"({nameof(GraphQLTypeAttribute.Name)} = \"{classInfo.Name}\")");
+            var classAttribute = Attribute(ParseName(nameof(GraphQLTypeAttribute)), classAttributeArguments); // TODO simplify name
+            var classAttributes = AttributeList(AttributeList().Attributes.Add(classAttribute));
+
             var declaration = ClassDeclaration(className)
-                                .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.PartialKeyword));
+                .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.PartialKeyword))
+                .AddAttributeLists(classAttributes);
+                                //.AttributeLists.Add(classAttribute);
 
             foreach (var @interface in classInfo.Interfaces ?? new List<GraphqlType>())
             {
@@ -135,10 +143,17 @@ namespace GraphQLinq.Scaffolding
                 var fieldName = field.Name.NormalizeIfNeeded(options);
 
                 if (fieldName == className)
+                    fieldName = $"{fieldName}Prop"; // TODO better naming
+
+                var memberAttributeArguments = ParseAttributeArgumentList($"({nameof(GraphQLMemberAttribute.Name)} = \"{field.Name}\")");
+                var memberAttribute = Attribute(ParseName(nameof(GraphQLMemberAttribute)), memberAttributeArguments); ;
+                var memberAttributes = AttributeList(AttributeList().Attributes.Add(memberAttribute));
+
+                /*if (fieldName == className)
                 {
                     declaration = declaration.ReplaceToken(declaration.Identifier, Identifier($"{className}Type"));
                     renamedClasses.Add(className, $"{className}Type");
-                }
+                }*/
 
                 var (fieldTypeName, fieldType) = GetSharpTypeName(field.Type);
 
@@ -148,7 +163,8 @@ namespace GraphQLinq.Scaffolding
                 }
 
                 var property = PropertyDeclaration(ParseTypeName(fieldTypeName), fieldName)
-                                            .AddModifiers(Token(SyntaxKind.PublicKeyword));
+                                            .AddModifiers(Token(SyntaxKind.PublicKeyword))
+                                            .AddAttributeLists(memberAttributes);
 
                 property = property.AddAccessorListAccessors(AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
                                    .WithSemicolonToken(semicolonToken));
@@ -249,15 +265,19 @@ namespace GraphQLinq.Scaffolding
                         var parameterSyntax = Parameter(Identifier(arg.Name)).WithType(ParseTypeName(typeName));
                         methodParameters.Add(parameterSyntax);
                     }
+                    var methodAttributeArguments = ParseAttributeArgumentList($"({nameof(GraphQLMethodAttribute.Name)} = \"{field.Name}\")");
+                    var methodAttribute = Attribute(ParseName(nameof(GraphQLMethodAttribute)), methodAttributeArguments); ;
+                    var methodAttributes = AttributeList(AttributeList().Attributes.Add(methodAttribute));
 
                     var returnStatement = ReturnStatement(
                         MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
                                 IdentifierName(identifierName),
-                                IdentifierName(fieldName))
+                                IdentifierName(fieldName)) //TODO Fix for Prop extended fields
                             .WithOperatorToken(Token(SyntaxKind.DotToken)));
 
                     methodDeclaration = methodDeclaration.AddParameterListParameters(methodParameters.ToArray())
-                                             .WithBody(Block(returnStatement));
+                        .WithBody(Block(returnStatement))
+                        .AddAttributeLists(methodAttributes);
 
 
                     declaration = declaration.AddMembers(methodDeclaration);
