@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
@@ -36,7 +37,7 @@ namespace GraphQLinq.Scaffolding
         {
             return string.IsNullOrEmpty(@namespace)
                 ? CompilationUnit()
-                : NamespaceDeclaration(IdentifierName(@namespace));
+                : NamespaceDeclaration(SyntaxFactory.IdentifierName(@namespace));
         }
 
         internal static SyntaxNode AddUsings(this SyntaxNode node, UsingDirectiveSyntax usingDirectiveSyntax)
@@ -68,5 +69,11 @@ namespace GraphQLinq.Scaffolding
                     return node;
             }
         }
+
+        internal static SyntaxToken Identifier(this string identifier) => SyntaxFactory.Identifier(identifier);
+        internal static IdentifierNameSyntax IdentifierName(this string identifier) => SyntaxFactory.IdentifierName(identifier);
+        internal static TypeSyntax TypeSyntax(this string type) => ParseTypeName(type);
+        internal static TypeSyntax TypeSyntax(this SyntaxKind predefinedType) => PredefinedType(Token(predefinedType));
+        // internal static TypeSyntax IdentifierName(this SyntaxKind syntaxKind) => SyntaxFactory.IdentifierName(Token(syntaxKind));
     }
 }
