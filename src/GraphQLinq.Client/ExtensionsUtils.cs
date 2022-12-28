@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
+using PokeApiGraphQLinq.Client.Attributes;
 
 namespace GraphQLinq
 {
@@ -82,7 +83,7 @@ namespace GraphQLinq
                 return "[" + ToGraphQlType(listType) + "]";
             }
 
-            return type.Name;
+            return type.GetGraphQLNameFromType();
         }
     }
 }

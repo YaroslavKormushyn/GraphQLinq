@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using PokeApiGraphQLinq.Client.Attributes;
 
 namespace GraphQLinq
 {
@@ -20,6 +21,7 @@ namespace GraphQLinq
 
         private static GraphContext _context;
 
+        // TODO FIX, Should only exist withing query run
         private static List<KeyValuePair<string, (string alternateKey, object value)>>
             additionalArguments = new List<KeyValuePair<string, (string alternateKey, object value)>>();
 
@@ -118,9 +120,10 @@ namespace GraphQLinq
 
                 if (member != null)
                 {
+                    var memberName = member.GetGraphQLNameFromMember();
                     if (string.IsNullOrEmpty(selectClause))
                     {
-                        selectClause = $"{padding}{alias}: {member.Name.ToCamelCase()}";
+                        selectClause = $"{padding}{alias}: {memberName}";
 
                         if (!member.PropertyType.GetTypeOrListType().IsValueTypeOrString())
                         {
@@ -130,7 +133,7 @@ namespace GraphQLinq
                     }
                     else
                     {
-                        selectClause = $"{member.Name.ToCamelCase()} {{ {Environment.NewLine}{selectClause}{Environment.NewLine}}}";
+                        selectClause = $"{memberName} {{ {Environment.NewLine}{selectClause}{Environment.NewLine}}}";
                     }
                     return BuildMemberAccessSelectClause(memberExpression.Expression, selectClause, padding, "");
                 }
@@ -165,7 +168,7 @@ namespace GraphQLinq
                 case MethodCallExpression methodCallExpression when methodCallExpression.Method.ReflectedType.Name.Equals(QueryExtensionsTypeName):
                     //return BuildCollectionQuery<Pokemon_v2_pokemonspeciesType>(parameterValues, "pokemon_v2_pokemonspecies");
                     //return GraphItemQuery<Pokemon_v2_pokemonspeciesType>(parameterValues, "pokemon_v2_pokemonspecies");
-                    var methodName = methodCallExpression.Method.Name;
+                    var methodName = methodCallExpression.Method.GetGraphQLNameFromMethod();
                     var parameters = methodCallExpression.Arguments;
 
                     Type genericType;
@@ -261,7 +264,7 @@ namespace GraphQLinq
         private static string BuildMemberAccessSelectClauseForNestedQueriesNew(NewExpression body, string selectClause,
             string padding, out string alias)
         {
-            alias = body.Members?.FirstOrDefault()?.Name;
+            alias = body.Members?.FirstOrDefault()?.GetGraphQLNameFromMethod();
             var tempFields = new List<(string key, string value)>();
 
             foreach (var bodyArgument in body.Arguments)
@@ -271,7 +274,7 @@ namespace GraphQLinq
                 tempFields.Add((elementAlias, s));
             }
 
-            // Quick and diry solution to support multiple selects on same type
+            // Quick and dirty solution to support multiple selects on same type
             // Does not check if fields are duplicated
             var lookup = tempFields.ToLookup(f => f.key, f => f.value);
             var fields = new List<string>();
@@ -308,7 +311,7 @@ namespace GraphQLinq
 
             var propertiesToInclude = propertyInfos.Where(info => !info.PropertyType.HasNestedProperties());
 
-            var selectClause = string.Join(Environment.NewLine, propertiesToInclude.Select(info => new string(' ', depth * 2) + info.Name.ToCamelCase()));
+            var selectClause = string.Join(Environment.NewLine, propertiesToInclude.Select(info => new string(' ', depth * 2) + info.GetGraphQLNameFromMember()));
 
             return selectClause;
         }
@@ -358,7 +361,7 @@ namespace GraphQLinq
                 propertyType = methodDetails.Method.ReturnType.GetTypeOrListType();
 
                 var includeMethodParams = methodDetails.Parameters.Where(pair => pair.Value.value != null).ToList();
-                includeName = methodDetails.Method.Name.ToCamelCase();
+                includeName = methodDetails.Method.GetGraphQLNameFromMethod();
 
                 if (includeMethodParams.Any())
                 {
@@ -387,8 +390,6 @@ namespace GraphQLinq
             fieldsFromInclude = $"{leftPadding}{includeName} {{{Environment.NewLine}{fieldsFromInclude}{Environment.NewLine}{leftPadding}}}";
             return fieldsFromInclude;
         }
-
-
     }
 
     static class QueryBuilders

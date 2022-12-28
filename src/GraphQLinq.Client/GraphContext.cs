@@ -1,3 +1,4 @@
+using PokeApiGraphQLinq.Client.Attributes;
 using System;
 using System.Collections.Generic;
 using System.Linq;

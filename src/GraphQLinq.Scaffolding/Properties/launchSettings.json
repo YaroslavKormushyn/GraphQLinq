@@ -2,7 +2,7 @@
   "profiles": {
     "Scaffolding": {
       "commandName": "Project",
-      "commandLineArgs": "http://fftbsfidi.westeurope.cloudapp.azure.com:8080/v1/graphql -o ..\\..\\..\\..\\..\\..\\..\\PokeApiGraphQLinq.ScafoldTest\\Poke -n Poke"
+      "commandLineArgs": "http://fftbsfidi.westeurope.cloudapp.azure.com:8080/v1/graphql -o ..\\..\\..\\..\\..\\..\\..\\PokeApiGraphQLinq.Infrastructure\\Poke -n Poke"
     }
   }
 }
