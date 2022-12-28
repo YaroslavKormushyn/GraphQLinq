@@ -57,16 +57,16 @@ namespace GraphQLinq
             Converters = { new JsonStringEnumConverter() },
         };
 
-        protected GraphCollectionQuery<T> BuildCollectionQuery<T>(object[] parameterValues, [CallerMemberName] string queryName = null)
+        protected GraphCollectionQuery<T> BuildCollectionQuery<T>(object[] parameterValues, [CallerMemberName] string queryName = null, bool isSubQuery = false)
         {
             var arguments = BuildDictionary(parameterValues, queryName);
-            return new GraphCollectionQuery<T, T>(this, queryName) { Arguments = arguments };
+            return new GraphCollectionQuery<T, T>(this, queryName, isSubQuery) { Arguments = arguments };
         }
 
-        protected GraphItemQuery<T> BuildItemQuery<T>(object[] parameterValues, [CallerMemberName] string queryName = null)
+        protected GraphItemQuery<T> BuildItemQuery<T>(object[] parameterValues, [CallerMemberName] string queryName = null, bool isSubQuery = false)
         {
             var arguments = BuildDictionary(parameterValues, queryName);
-            return new GraphItemQuery<T, T>(this, queryName) { Arguments = arguments };
+            return new GraphItemQuery<T, T>(this, queryName, isSubQuery) { Arguments = arguments };
         }
 
         private Dictionary<string, (string alternateKey, object value)> BuildDictionary(object[] parameterValues, string queryName)

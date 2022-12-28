@@ -14,6 +14,7 @@ namespace GraphQLinq
     class GraphQueryBuilder<T>
     {
         private const string QueryTemplate = @"query {0} {{ {1}: {2} {3} {{ {4} }} }}";
+        private const string SubQueryTemplate = @"{0} {1} {{ {2} }} ";
         private const string ScalarQueryTemplate = @"query {0} {{ {1}: {2} {3} {4} }}";
 
         internal const string ResultAlias = "result";
@@ -57,7 +58,7 @@ namespace GraphQLinq
 
                         foreach (var argument in newExpression.Arguments.OfType<MethodCallExpression>())
                         {
-                            var selectQuery = BuildMemberAccessSelectClauseForNestedQueries(argument, selectClause, padding, out _, graphQuery.context);
+                            var selectQuery = BuildMemberAccessSelectClauseForNestedQueries(argument, selectClause, padding, out _);
                             fields.Add(selectQuery);
                         }
                         selectClause = string.Join(Environment.NewLine, fields);
@@ -112,6 +113,92 @@ namespace GraphQLinq
             return new GraphQLQuery(graphQLQuery, queryVariables, json);
         }
 
+        public GraphQLQuery BuildSubQuery(GraphQuery<T> graphQuery, List<IncludeDetails> includes)
+        {
+            _context = graphQuery.context;
+            var selectClause = "";
+
+            var passedArguments = graphQuery.Arguments.Where(pair => pair.Value.value != null).ToList();
+            var queryVariables = passedArguments.ToDictionary(pair => pair.Key, pair => pair.Value.value);
+
+            if (graphQuery.Selector != null)
+            {
+                var body = graphQuery.Selector.Body;
+
+                var padding = new string(' ', 4);
+
+                var fields = new List<string>();
+
+                switch (body)
+                {
+                    case MemberExpression memberExpression:
+                        var member = memberExpression.Member;
+                        selectClause = BuildMemberAccessSelectClause(body, selectClause, padding, member.Name);
+                        break;
+
+                    case NewExpression newExpression:
+                        foreach (var argument in newExpression.Arguments.OfType<MemberExpression>())
+                        {
+                            var selectField = BuildMemberAccessSelectClause(argument, selectClause, padding, argument.Member.Name);
+                            fields.Add(selectField);
+                        }
+
+                        foreach (var argument in newExpression.Arguments.OfType<MethodCallExpression>())
+                        {
+                            var selectQuery = BuildMemberAccessSelectClauseForNestedQueries(argument, selectClause, padding, out _);
+                            fields.Add(selectQuery);
+                        }
+                        selectClause = string.Join(Environment.NewLine, fields);
+                        break;
+
+                    case MemberInitExpression memberInitExpression:
+                        foreach (var argument in memberInitExpression.Bindings.OfType<MemberAssignment>())
+                        {
+                            var selectField = BuildMemberAccessSelectClause(argument.Expression, selectClause, padding, argument.Member.Name);
+                            fields.Add(selectField);
+                        }
+                        selectClause = string.Join(Environment.NewLine, fields);
+                        break;
+                    default:
+                        throw new NotSupportedException($"Selector of type {body.NodeType} is not implemented yet");
+                }
+            }
+            else
+            {
+                var select = BuildSelectClauseForType(typeof(T), includes);
+                selectClause = select.SelectClause;
+
+                foreach (var item in select.IncludeArguments)
+                {
+                    queryVariables.Add(item.Key, item.Value.value);
+                }
+            }
+
+            var isScalarQuery = string.IsNullOrEmpty(selectClause);
+            selectClause = Environment.NewLine + selectClause + Environment.NewLine;
+
+            var combinedArguments = new List<KeyValuePair<string, (string alternateKey, object value)>>();
+            combinedArguments.AddRange(passedArguments);
+            combinedArguments.AddRange(additionalArguments);
+
+            queryVariables = combinedArguments.ToDictionary(pair => pair.Key, pair => pair.Value.value);
+
+            var queryParameters = passedArguments.Any() ? $"({string.Join(", ", passedArguments.Select(pair => $"{(!string.IsNullOrEmpty(pair.Value.alternateKey) ? pair.Value.alternateKey : pair.Key)}: ${pair.Key}"))})" : "";
+
+            var graphQLQuery = string.Format(isScalarQuery ? ScalarQueryTemplate : SubQueryTemplate, graphQuery.QueryName, queryParameters, selectClause);
+
+            var dictionary = new Dictionary<string, object> { { "query", graphQLQuery }, { "variables", queryVariables } };
+
+            var json = JsonSerializer.Serialize(dictionary, new JsonSerializerOptions
+            {
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                Converters = { new JsonStringEnumConverter() }
+            });
+
+            return new GraphQLQuery(graphQLQuery, queryVariables, json);
+        }
+
         private static string BuildMemberAccessSelectClause(Expression body, string selectClause, string padding, string alias)
         {
             if (body is MemberExpression memberExpression)
@@ -143,7 +230,7 @@ namespace GraphQLinq
         }
 
         private static string BuildMemberAccessSelectClauseForNestedQueries(Expression body, string selectClause,
-            string padding, out string aliasName, GraphContext context = null)
+            string padding, out string aliasName)
         {
             switch (body)
             {
@@ -165,74 +252,95 @@ namespace GraphQLinq
                     aliasName = memberExpression.Member.Name;
                     selectClause = $"{selectClause}{(!string.IsNullOrEmpty(selectClause) ? Environment.NewLine : string.Empty)}{s}";
                     return selectClause;
-                case MethodCallExpression methodCallExpression when methodCallExpression.Method.ReflectedType.Name.Equals(QueryExtensionsTypeName):
-                    //return BuildCollectionQuery<Pokemon_v2_pokemonspeciesType>(parameterValues, "pokemon_v2_pokemonspecies");
-                    //return GraphItemQuery<Pokemon_v2_pokemonspeciesType>(parameterValues, "pokemon_v2_pokemonspecies");
-                    var methodName = methodCallExpression.Method.GetGraphQLNameFromMethod();
-                    var parameters = methodCallExpression.Arguments;
 
-                    Type genericType;
-                    var returnType = methodCallExpression.Method.ReturnType;
-                    var isCollection = returnType.GetInterface(nameof(IEnumerable)) != null;
-
-                    if (returnType.IsGenericType)
-                    {
-                        genericType = returnType.GetGenericTypeDefinition();
-
-                        if (isCollection)
-                        {
-                            genericType = returnType.GetGenericArguments().First();
-                        }
-                    }
-                    else
-                    {
-                        genericType = returnType;
-                    }
-
-                    var parameterObjects = new List<object>();
-
-                    foreach (var parameter in parameters)
-                    {
-                        switch (parameter)
-                        {
-                            case MemberInitExpression memberInitExpression:
-
-                                var test = Expression.Lambda<Func<object>>(memberInitExpression).Compile()();
-                                parameterObjects.Add(test);
-                                break;
-                            case ConstantExpression constantExpression:
-                                parameterObjects.Add(constantExpression.Value);
-                                break;
-
-                            default:
-                                // Skip others, first would be ParameterExpression, but this is not needed
-                                continue;
-                        }
-                    }
-
-                    var buildCollectionQueryBaseMethod = typeof(QueryBuilders)
-                        .GetMethod(nameof(QueryBuilders.BuildCollectionQuery));
-                    var buildCollectionQueryGenericMethod = buildCollectionQueryBaseMethod?.MakeGenericMethod(genericType);
-                    var result = buildCollectionQueryGenericMethod?.Invoke(null, new object[] { _context, parameterObjects.ToArray(), genericType.Name.ToLower() } );
-                    var graphQueryType = typeof(GraphCollectionQuery<>).MakeGenericType(returnType);
-
-                    var renameQueryBaseMethod = typeof(QueryBuilders)
-                        .GetMethod(nameof(QueryBuilders.RenameQueryArguments));
-                    var renameQueryGenericMethod = renameQueryBaseMethod?.MakeGenericMethod(genericType);
-
-                    (string q, List<KeyValuePair<string, (string alternateKey, object value)>> arguments) = ((string, List<KeyValuePair<string, (string alternateKey, object value)>>))renameQueryGenericMethod?.Invoke(null, new object[] { result, methodName});
-
-                    q = q.Remove(0, q.IndexOf(ResultAlias, StringComparison.Ordinal)+ResultAlias.Length+1);
-                    q = q.Remove(q.LastIndexOf("}", StringComparison.Ordinal), 1);
-                    additionalArguments.AddRange( arguments);
+                // Attempt to support subqueries
+                case MethodCallExpression methodCallExpression when methodCallExpression.Method.ReflectedType.Name.Equals(QueryExtensionsTypeName): 
+                    var q = BuildNestedQuery(methodCallExpression);
                     aliasName = string.Empty;
                     selectClause = $"{selectClause}{(!string.IsNullOrEmpty(selectClause) ? Environment.NewLine : string.Empty)}{q}";
                     return selectClause;
-
-                // Attempt to support subqueries
                 default:
                     throw new NotSupportedException($"Selector of type {body.NodeType} is not implemented yet");
             }
+        }
+
+        private static string BuildNestedQuery(MethodCallExpression methodCallExpression)
+        {
+            // TODO Rethink query structure to avoid runtime black magic and renaming
+            var methodName = methodCallExpression.Method.GetGraphQLNameFromMethod();
+            var parameters = methodCallExpression.Arguments;
+
+            Type genericType;
+            var returnType = methodCallExpression.Method.ReturnType;
+            var isCollection = returnType.GetInterface(nameof(IEnumerable)) != null;
+
+            if (returnType.IsGenericType)
+            {
+                genericType = returnType.GetGenericTypeDefinition();
+
+                if (isCollection)
+                {
+                    genericType = returnType.GetGenericArguments().First();
+                }
+            }
+            else
+            {
+                genericType = returnType;
+            }
+
+            var parameterObjects = new List<object>();
+
+            foreach (var parameter in parameters)
+            {
+                switch (parameter)
+                {
+                    case MemberInitExpression memberInitExpression:
+
+                        var test = Expression.Lambda<Func<object>>(memberInitExpression).Compile()();
+                        parameterObjects.Add(test);
+                        break;
+                    case ConstantExpression constantExpression:
+                        parameterObjects.Add(constantExpression.Value);
+                        break;
+
+                    default:
+                        // Skip others, first would be ParameterExpression, but this is not needed
+                        continue;
+                }
+            }
+
+            GraphQuery result;
+            if (isCollection)
+            {
+                var buildCollectionQueryBaseMethod = typeof(QueryBuilders)
+                    .GetMethod(nameof(QueryBuilders.BuildCollectionQuery));
+                var buildCollectionQueryGenericMethod = buildCollectionQueryBaseMethod?.MakeGenericMethod(genericType);
+                result = buildCollectionQueryGenericMethod?.Invoke(null,
+                    new object[]
+                    {
+                        _context, parameterObjects.ToArray(), genericType.GetGraphQLNameFromType(), methodName, true
+                    }) as GraphQuery;
+            }
+            else
+            {
+                var buildItemQueryBaseMethod = typeof(QueryBuilders)
+                    .GetMethod(nameof(QueryBuilders.BuildItemQuery));
+                var buildItemQueryGenericMethod = buildItemQueryBaseMethod?.MakeGenericMethod(genericType);
+                result = buildItemQueryGenericMethod?.Invoke(null,
+                    new object[]
+                    {
+                        _context, parameterObjects.ToArray(), genericType.GetGraphQLNameFromType(), methodName, true
+                    }) as GraphQuery;
+            }
+
+            var query = result?.Query;
+
+            /*query = query.Remove(0, query.IndexOf(ResultAlias, StringComparison.Ordinal) + ResultAlias.Length + 1);
+            query = query.Remove(query.LastIndexOf("}", StringComparison.Ordinal), 1);*/
+            if (result?.Arguments != null)
+                additionalArguments.AddRange(result.Arguments.Where(pair => pair.Value.value != null));
+
+            return query;
         }
 
         public static string BuildMemberAccessSelectClauseForNestedQueriesMethodCall(MethodCallExpression body,
@@ -274,7 +382,7 @@ namespace GraphQLinq
                 tempFields.Add((elementAlias, s));
             }
 
-            // Quick and dirty solution to support multiple selects on same type
+            // TODO Quick and dirty solution to support multiple selects on same type
             // Does not check if fields are duplicated
             var lookup = tempFields.ToLookup(f => f.key, f => f.value);
             var fields = new List<string>();
@@ -394,38 +502,23 @@ namespace GraphQLinq
 
     static class QueryBuilders
     {
-        public  static GraphCollectionQuery<T> BuildCollectionQuery<T>(GraphContext context, object[] parameterValues, [CallerMemberName] string queryName = null)
+        public  static GraphCollectionQuery<T> BuildCollectionQuery<T>(GraphContext context, object[] parameterValues, [CallerMemberName] string queryName = null, string prefix = null, bool isSubQuery = false)
         {
-            var arguments = BuildDictionary(context, parameterValues, queryName);
-            return new GraphCollectionQuery<T, T>(context, queryName) { Arguments = arguments };
+            var arguments = BuildDictionary(context, parameterValues, queryName, prefix);
+            return new GraphCollectionQuery<T, T>(context, string.IsNullOrEmpty(prefix) ? queryName: prefix, isSubQuery) { Arguments = arguments };// TODO rework prefix
         }
 
-        public static GraphItemQuery<T> BuildItemQuery<T>(GraphContext context, object[] parameterValues, [CallerMemberName] string queryName = null)
+        public static GraphItemQuery<T> BuildItemQuery<T>(GraphContext context, object[] parameterValues, [CallerMemberName] string queryName = null, string prefix = null, bool isSubQuery = false)
         {
-            var arguments = BuildDictionary(context, parameterValues, queryName);
-            return new GraphItemQuery<T, T>(context, queryName) { Arguments = arguments };
+            var arguments = BuildDictionary(context, parameterValues, queryName, prefix);
+            return new GraphItemQuery<T, T>(context, string.IsNullOrEmpty(prefix) ? queryName : prefix, isSubQuery) { Arguments = arguments }; // TODO rework prefix
         }
 
-        private static Dictionary<string, (string alternateKey, object value)> BuildDictionary(GraphContext context, object[] parameterValues, string queryName)
+        private static Dictionary<string, (string alternateKey, object value)> BuildDictionary(GraphContext context, object[] parameterValues, string queryName, string prefix = "")
         {
             var parameters = context.GetType().GetMethod(queryName, BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.Instance).GetParameters();
-            var arguments = parameters.Zip(parameterValues, (info, value) => new { info.Name, Value = value }).ToDictionary(arg => arg.Name, arg => ("", arg.Value));
+            var arguments = parameters.Zip(parameterValues, (info, value) => new { info.Name, Value = value }).ToDictionary(arg => string.IsNullOrEmpty(prefix) ? arg.Name : prefix + arg.Name, arg => (string.IsNullOrEmpty(prefix) ? "" : arg.Name , arg.Value));
             return arguments;
-        }
-
-        public static (string query, List<KeyValuePair<string, (string alternateKey, object value)>> arguments) RenameQueryArguments<T>(GraphCollectionQuery<T> query, string prefix)
-        {
-            var argumentList = new List<KeyValuePair<string, (string alternateKey, object value)>>();
-
-            foreach (var arg in query.Arguments.Where(pair => pair.Value.value != null).ToList())
-            {
-                var newKey = prefix + arg.Key;
-                argumentList.Add(new KeyValuePair<string, (string alternateKey, object value)>(newKey, (arg.Key, arg.Value.value)));
-            }
-
-            query.Update(argumentList.ToDictionary(d => d.Key, d => d.Value), prefix);
-
-            return (query.Query, argumentList);
         }
     }
 
