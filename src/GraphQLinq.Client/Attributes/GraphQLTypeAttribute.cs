@@ -1,6 +1,6 @@
 using System;
 
-namespace GraphQLinq.Client.Attributes
+namespace GraphQLinq.Attributes
 {
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
     public class GraphQLTypeAttribute : Attribute

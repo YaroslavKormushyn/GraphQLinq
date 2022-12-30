@@ -1,4 +1,3 @@
-using PokeApiGraphQLinq.Client.Attributes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,10 +12,13 @@ namespace GraphQLinq
     public class GraphContext : IDisposable
     {
         private readonly bool ownsHttpClient = false;
+        // TODO Temporary hack for passing subquery while testing options
+        public bool IsSubQuery = false;
+        public SubQueryContext SubQueryContext;
 
         public HttpClient HttpClient { get; }
 
-        protected GraphContext(HttpClient httpClient)
+        protected GraphContext(HttpClient httpClient, SubQueryContext subQueryContext)
         {
             if (httpClient == null)
             {
@@ -29,14 +31,17 @@ namespace GraphQLinq
             }
 
             HttpClient = httpClient;
+            this.SubQueryContext = subQueryContext;
         }
 
-        protected GraphContext(string baseUrl, string authorization)
+        protected GraphContext(string baseUrl, string authorization, SubQueryContext subQueryContext)
         {
             if (string.IsNullOrEmpty(baseUrl))
             {
                 throw new ArgumentException($"{nameof(baseUrl)} cannot be empty");
             }
+
+            this.SubQueryContext = subQueryContext;
 
             ownsHttpClient = true;
             HttpClient = new HttpClient();
@@ -57,16 +62,16 @@ namespace GraphQLinq
             Converters = { new JsonStringEnumConverter() },
         };
 
-        protected GraphCollectionQuery<T> BuildCollectionQuery<T>(object[] parameterValues, [CallerMemberName] string queryName = null, bool isSubQuery = false)
+        protected GraphCollectionQuery<T> BuildCollectionQuery<T>(object[] parameterValues, [CallerMemberName] string queryName = null)
         {
             var arguments = BuildDictionary(parameterValues, queryName);
-            return new GraphCollectionQuery<T, T>(this, queryName, isSubQuery) { Arguments = arguments };
+            return new GraphCollectionQuery<T, T>(this, SubQueryContext, queryName) { Arguments = arguments };
         }
 
-        protected GraphItemQuery<T> BuildItemQuery<T>(object[] parameterValues, [CallerMemberName] string queryName = null, bool isSubQuery = false)
+        protected GraphItemQuery<T> BuildItemQuery<T>(object[] parameterValues, [CallerMemberName] string queryName = null)
         {
             var arguments = BuildDictionary(parameterValues, queryName);
-            return new GraphItemQuery<T, T>(this, queryName, isSubQuery) { Arguments = arguments };
+            return new GraphItemQuery<T, T>(this, SubQueryContext, queryName) { Arguments = arguments };
         }
 
         private Dictionary<string, (string alternateKey, object value)> BuildDictionary(object[] parameterValues, string queryName)

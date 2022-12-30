@@ -8,12 +8,12 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Formatting;
-using GraphQLinq.Client.Attributes;
 using Microsoft.CSharp;
 using Spectre.Console;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using System.Linq.Expressions;
 using System.Reflection;
+using GraphQLinq.Attributes;
 
 namespace GraphQLinq.Scaffolding
 {
@@ -104,6 +104,10 @@ namespace GraphQLinq.Scaffolding
             AnsiConsole.WriteLine("Scaffolding GraphQLContext ...");
             var graphContext = GenerateGraphContext(queryClass, endpointUrl);
             FormatAndWriteToFile(graphContext, $"{options.ContextName}Context");
+
+            AnsiConsole.WriteLine("Scaffolding GraphQLSubQueryContext ...");
+            var graphSubQueryContext = GenerateSubQueryContext(classesWithArgFields);
+            FormatAndWriteToFile(graphSubQueryContext, $"{options.ContextName}SubQueryContext");
 
             return $"{options.ContextName}Context";
         }
@@ -546,7 +550,8 @@ namespace GraphQLinq.Scaffolding
 
             var baseInitializer = ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
                                     .AddArgumentListArguments(Argument(IdentifierName("baseUrl")),
-                                                              Argument(LiteralExpression(SyntaxKind.StringLiteralExpression, Literal(""))));
+                                                              Argument(LiteralExpression(SyntaxKind.StringLiteralExpression, Literal(""))),
+                                                              Argument(ObjectCreationExpression($"{options.ContextName}SubQueryContext".IdentifierName())));
 
             var baseUrlConstructorDeclaration = ConstructorDeclaration(className)
                                     .AddModifiers(Token(SyntaxKind.PublicKeyword))
@@ -555,7 +560,8 @@ namespace GraphQLinq.Scaffolding
                                     .WithBody(Block());
 
             var baseHttpClientInitializer = ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
-                                    .AddArgumentListArguments(Argument(IdentifierName("httpClient")));
+                .AddArgumentListArguments(Argument(IdentifierName("httpClient")),
+                    Argument(ObjectCreationExpression($"{options.ContextName}SubQueryContext".IdentifierName())));
 
             var httpClientConstructorDeclaration = ConstructorDeclaration(className)
                                     .AddModifiers(Token(SyntaxKind.PublicKeyword))
@@ -631,6 +637,110 @@ namespace GraphQLinq.Scaffolding
 
             return topLevelDeclaration;
         }
+
+        private SyntaxNode GenerateSubQueryContext(List<GraphqlType> classesWithArgFields)
+        {
+            var topLevelDeclaration = RoslynUtilities.GetTopLevelNode(options.Namespace)
+                .AddUsings(UsingDirective(IdentifierName("GraphQLinq")));
+
+            var className = $"{options.ContextName}SubQueryContext"; // TODO improve
+            var declaration = ClassDeclaration(className)
+                .AddModifiers(Token(SyntaxKind.PublicKeyword))
+                .AddBaseListTypes(SimpleBaseType(ParseTypeName("SubQueryContext")));
+
+
+            var fieldsWithArgs = classesWithArgFields.SelectMany(c => c.Fields).Where(f => f.Args.Any())
+                .GroupBy(f => f.Name);
+            var distinctFieldsWithArgs = fieldsWithArgs
+                .SelectMany(f => f.DistinctBy(g => (g.Args.SelectMany(s =>
+                        $"{(s.Type.Kind != TypeKind.List ? s.Type.Name : s.Type.OfType?.Name ?? s.Type.OfType?.OfType?.Name)}")
+                    .ToString()))); // TODO Improve distinct
+
+            /*foreach (var @class in classesWithArgFields)
+            {
+                foreach (var field in @class.Fields.Where(f => f.Args.Any()))
+                {*/
+            foreach (var field in distinctFieldsWithArgs)
+            {
+                var (fieldTypeName, fieldType) =
+                    GetSharpTypeName(field.Type.Kind == TypeKind.NonNull ? field.Type.OfType : field.Type, true);
+
+                var baseMethodName = fieldTypeName.Replace("GraphItemQuery", "BuildItemQuery")
+                    .Replace("GraphCollectionQuery", "BuildCollectionQuery");
+
+                var fieldName = field.Name.NormalizeIfNeeded(options);
+
+                var methodDeclaration = MethodDeclaration(ParseTypeName(fieldTypeName), fieldName)
+                    .AddModifiers(Token(SyntaxKind.PublicKeyword));
+
+                var methodParameters = new List<ParameterSyntax>();
+
+                var initializer = InitializerExpression(SyntaxKind.ArrayInitializerExpression);
+
+                // TODO magic strings
+                var contextParameterName = "context";
+                // Requires context
+                methodParameters.Add(Parameter(contextParameterName.Identifier())
+                    .WithType(ParseTypeName(nameof(GraphContext))));
+                foreach (var arg in field.Args)
+                {
+                    (fieldTypeName, fieldType) = GetSharpTypeName(arg.Type);
+
+                    if (NeedsNullable(fieldType, arg.Type))
+                    {
+                        fieldTypeName += "?";
+                    }
+
+                    var parameterSyntax = Parameter(Identifier(arg.Name)).WithType(ParseTypeName(fieldTypeName));
+                    methodParameters.Add(parameterSyntax);
+
+                    initializer = initializer.AddExpressions(IdentifierName(arg.Name));
+                }
+
+                var paramsArray = ArrayCreationExpression(ArrayType(ParseTypeName("object[]")), initializer);
+
+                var parametersDeclaration = LocalDeclarationStatement(VariableDeclaration(IdentifierName("var"))
+                    .WithVariables(SingletonSeparatedList(VariableDeclarator(Identifier("parameterValues"))
+                        .WithInitializer(EqualsValueClause(paramsArray)))));
+
+                var contextArgument = Argument(contextParameterName.IdentifierName());
+                var parametersArgument = Argument(IdentifierName("parameterValues"));
+
+                // TODO Fix
+                var argumentSyntax = Argument(InvocationExpression(
+                        MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                            InvocationExpression(MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, ThisExpression(), nameof(Type.GetType).IdentifierName())),
+                            nameof(GraphQLAttributeExtensions.GetGraphQLNameFromMethod).IdentifierName()))
+                    .AddArgumentListArguments(
+                        Argument(InvocationExpression(Token(SyntaxKind.NameOfKeyword).Text.IdentifierName())
+                            .AddArgumentListArguments(Argument(GetMappedType(field.Type?.Name ?? field.Name).Item1
+                                .IdentifierName())))));
+
+                var returnStatement = ReturnStatement(InvocationExpression(IdentifierName(baseMethodName))
+                    .WithArgumentList(ArgumentList(SeparatedList(new List<ArgumentSyntax>
+                        { contextArgument, parametersArgument, argumentSyntax }))));
+
+                // TODO refactor
+                var methodAttributeArguments = ParseAttributeArgumentList($"({nameof(GraphQLMethodAttribute.Name)} = \"{field.Name}\")");
+                var methodAttribute = Attribute(ParseName(GetSimplifiedName(typeof(GraphQLMethodAttribute))), methodAttributeArguments); ;
+                var methodAttributes = AttributeList(AttributeList().Attributes.Add(methodAttribute));
+
+                methodDeclaration = methodDeclaration.AddParameterListParameters(methodParameters.ToArray())
+                    .WithBody(Block(parametersDeclaration, returnStatement))
+                    .AddAttributeLists(methodAttributes);
+
+                declaration = declaration.AddMembers(methodDeclaration);
+            }
+
+            topLevelDeclaration = topLevelDeclaration.AddMembers(declaration);
+            foreach (var @using in usings)
+            {
+                topLevelDeclaration = topLevelDeclaration.AddUsings(UsingDirective(IdentifierName(@using)));
+            }
+
+            return topLevelDeclaration;
+        }
+
 
         private static bool NeedsNullable(Type? systemType, FieldType type)
         {

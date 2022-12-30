@@ -7,7 +7,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using PokeApiGraphQLinq.Client.Attributes;
+using GraphQLinq.Attributes;
 
 namespace GraphQLinq
 {
@@ -267,6 +267,7 @@ namespace GraphQLinq
         private static string BuildNestedQuery(MethodCallExpression methodCallExpression)
         {
             // TODO Rethink query structure to avoid runtime black magic and renaming
+            // Better idea, call method on query context? Does not need to be typed 
             var methodName = methodCallExpression.Method.GetGraphQLNameFromMethod();
             var parameters = methodCallExpression.Arguments;
 
@@ -288,8 +289,10 @@ namespace GraphQLinq
                 genericType = returnType;
             }
 
-            var parameterObjects = new List<object>();
 
+            var parameterObjects = new List<object>();
+            //parameterObjects.Add(methodName);
+            parameterObjects.Add(_context);
             foreach (var parameter in parameters)
             {
                 switch (parameter)
@@ -308,8 +311,10 @@ namespace GraphQLinq
                         continue;
                 }
             }
+            
 
             GraphQuery result;
+            /*
             if (isCollection)
             {
                 var buildCollectionQueryBaseMethod = typeof(QueryBuilders)
@@ -332,11 +337,18 @@ namespace GraphQLinq
                         _context, parameterObjects.ToArray(), genericType.GetGraphQLNameFromType(), methodName, true
                     }) as GraphQuery;
             }
+            */
+
+            // Works but still requires retrieval of type name from generic
+            // also passing subquery is required
+            _context.IsSubQuery = true;
+            var contextMethod = QueryBuilders.GetQueryContextMethod(_context.SubQueryContext, methodName);
+
+            result = contextMethod.Invoke(_context.SubQueryContext, parameterObjects.ToArray()) as GraphQuery;
+            _context.IsSubQuery = false;
 
             var query = result?.Query;
 
-            /*query = query.Remove(0, query.IndexOf(ResultAlias, StringComparison.Ordinal) + ResultAlias.Length + 1);
-            query = query.Remove(query.LastIndexOf("}", StringComparison.Ordinal), 1);*/
             if (result?.Arguments != null)
                 additionalArguments.AddRange(result.Arguments.Where(pair => pair.Value.value != null));
 
@@ -502,16 +514,16 @@ namespace GraphQLinq
 
     static class QueryBuilders
     {
-        public  static GraphCollectionQuery<T> BuildCollectionQuery<T>(GraphContext context, object[] parameterValues, [CallerMemberName] string queryName = null, string prefix = null, bool isSubQuery = false)
+        public  static GraphCollectionQuery<T> BuildCollectionQuery<T>(GraphContext context, SubQueryContext subQueryContext, object[] parameterValues, [CallerMemberName] string queryName = null, string prefix = null, bool isSubQuery = false)
         {
             var arguments = BuildDictionary(context, parameterValues, queryName, prefix);
-            return new GraphCollectionQuery<T, T>(context, string.IsNullOrEmpty(prefix) ? queryName: prefix, isSubQuery) { Arguments = arguments };// TODO rework prefix
+            return new GraphCollectionQuery<T, T>(context, subQueryContext, string.IsNullOrEmpty(prefix) ? queryName: prefix, isSubQuery) { Arguments = arguments };// TODO rework prefix
         }
 
-        public static GraphItemQuery<T> BuildItemQuery<T>(GraphContext context, object[] parameterValues, [CallerMemberName] string queryName = null, string prefix = null, bool isSubQuery = false)
+        public static GraphItemQuery<T> BuildItemQuery<T>(GraphContext context, SubQueryContext subQueryContext, object[] parameterValues, [CallerMemberName] string queryName = null, string prefix = null, bool isSubQuery = false)
         {
             var arguments = BuildDictionary(context, parameterValues, queryName, prefix);
-            return new GraphItemQuery<T, T>(context, string.IsNullOrEmpty(prefix) ? queryName : prefix, isSubQuery) { Arguments = arguments }; // TODO rework prefix
+            return new GraphItemQuery<T, T>(context, subQueryContext, string.IsNullOrEmpty(prefix) ? queryName : prefix, isSubQuery) { Arguments = arguments }; // TODO rework prefix
         }
 
         private static Dictionary<string, (string alternateKey, object value)> BuildDictionary(GraphContext context, object[] parameterValues, string queryName, string prefix = "")
@@ -519,6 +531,13 @@ namespace GraphQLinq
             var parameters = context.GetType().GetMethod(queryName, BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.Instance).GetParameters();
             var arguments = parameters.Zip(parameterValues, (info, value) => new { info.Name, Value = value }).ToDictionary(arg => string.IsNullOrEmpty(prefix) ? arg.Name : prefix + arg.Name, arg => (string.IsNullOrEmpty(prefix) ? "" : arg.Name , arg.Value));
             return arguments;
+        }
+
+        // TODO Improve?
+        public static MethodInfo GetQueryContextMethod(SubQueryContext context, string methodName)
+        {
+            return context.GetType().GetMethod(methodName,
+                BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.Instance);
         }
     }
 

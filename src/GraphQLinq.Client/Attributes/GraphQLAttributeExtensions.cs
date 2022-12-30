@@ -1,11 +1,10 @@
-﻿using GraphQLinq.Client.Attributes;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 
-namespace PokeApiGraphQLinq.Client.Attributes
+namespace GraphQLinq.Attributes
 {
     public static class GraphQLAttributeExtensions
     {

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
-using PokeApiGraphQLinq.Client.Attributes;
+using GraphQLinq.Attributes;
 
 namespace GraphQLinq
 {

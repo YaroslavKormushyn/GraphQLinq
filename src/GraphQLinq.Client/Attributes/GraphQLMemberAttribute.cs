@@ -1,6 +1,6 @@
 using System;
 
-namespace GraphQLinq.Client.Attributes
+namespace GraphQLinq.Attributes
 {
     [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
     public class GraphQLMemberAttribute : Attribute
