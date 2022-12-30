@@ -549,25 +549,25 @@ namespace GraphQLinq.Scaffolding
                 .WithBody(Block());
 
             var baseInitializer = ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
-                                    .AddArgumentListArguments(Argument(IdentifierName("baseUrl")),
-                                                              Argument(LiteralExpression(SyntaxKind.StringLiteralExpression, Literal(""))),
-                                                              Argument(ObjectCreationExpression($"{options.ContextName}SubQueryContext".IdentifierName())));
+                .AddArgumentListArguments(Argument(IdentifierName("baseUrl")),
+                    Argument(LiteralExpression(SyntaxKind.StringLiteralExpression, Literal(""))));
+                                                              //Argument(InvocationExpression(ObjectCreationExpression($"{options.ContextName}SubQueryContext".IdentifierName()).AddArgumentListArguments(Argument(ThisExpression())))));
 
             var baseUrlConstructorDeclaration = ConstructorDeclaration(className)
                                     .AddModifiers(Token(SyntaxKind.PublicKeyword))
                                     .AddParameterListParameters(Parameter(Identifier("baseUrl")).WithType(ParseTypeName("string")))
                                     .WithInitializer(baseInitializer)
-                                    .WithBody(Block());
+                                    .WithBody(Block(ExpressionStatement(AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, nameof(GraphContext.SubQueryContext).IdentifierName(), ObjectCreationExpression($"{options.ContextName}SubQueryContext".IdentifierName()).AddArgumentListArguments(Argument(ThisExpression()))))));
 
             var baseHttpClientInitializer = ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
-                .AddArgumentListArguments(Argument(IdentifierName("httpClient")),
-                    Argument(ObjectCreationExpression($"{options.ContextName}SubQueryContext".IdentifierName())));
+                .AddArgumentListArguments(Argument(IdentifierName("httpClient")));
+                    //Argument(InvocationExpression(ObjectCreationExpression($"{options.ContextName}SubQueryContext".IdentifierName()).AddArgumentListArguments(Argument(ThisExpression())))));
 
             var httpClientConstructorDeclaration = ConstructorDeclaration(className)
                                     .AddModifiers(Token(SyntaxKind.PublicKeyword))
                                     .AddParameterListParameters(Parameter(Identifier("httpClient")).WithType(ParseTypeName("HttpClient")))
                                     .WithInitializer(baseHttpClientInitializer)
-                                    .WithBody(Block());
+                                    .WithBody(Block(ExpressionStatement(AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, nameof(GraphContext.SubQueryContext).IdentifierName(), ObjectCreationExpression($"{options.ContextName}SubQueryContext".IdentifierName()).AddArgumentListArguments(Argument(ThisExpression()))))));
 
             declaration = declaration.AddMembers(defaultConstructorDeclaration, baseUrlConstructorDeclaration, httpClientConstructorDeclaration);
 
@@ -648,6 +648,16 @@ namespace GraphQLinq.Scaffolding
                 .AddModifiers(Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(SimpleBaseType(ParseTypeName("SubQueryContext")));
 
+            var baseInitializer = ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
+                .AddArgumentListArguments(Argument(IdentifierName("context")));
+
+            var baseUrlConstructorDeclaration = ConstructorDeclaration(className)
+                .AddModifiers(Token(SyntaxKind.PublicKeyword))
+                .AddParameterListParameters(Parameter(Identifier("context")).WithType(ParseTypeName(nameof(GraphContext))))
+                .WithInitializer(baseInitializer)
+                .WithBody(Block());
+
+            declaration = declaration.AddMembers(baseUrlConstructorDeclaration);
 
             var fieldsWithArgs = classesWithArgFields.SelectMany(c => c.Fields).Where(f => f.Args.Any())
                 .GroupBy(f => f.Name);
@@ -678,10 +688,10 @@ namespace GraphQLinq.Scaffolding
                 var initializer = InitializerExpression(SyntaxKind.ArrayInitializerExpression);
 
                 // TODO magic strings
-                var contextParameterName = "context";
+                /*var contextParameterName = "context";
                 // Requires context
                 methodParameters.Add(Parameter(contextParameterName.Identifier())
-                    .WithType(ParseTypeName(nameof(GraphContext))));
+                    .WithType(ParseTypeName(nameof(GraphContext))));*/
                 foreach (var arg in field.Args)
                 {
                     (fieldTypeName, fieldType) = GetSharpTypeName(arg.Type);
@@ -703,7 +713,7 @@ namespace GraphQLinq.Scaffolding
                     .WithVariables(SingletonSeparatedList(VariableDeclarator(Identifier("parameterValues"))
                         .WithInitializer(EqualsValueClause(paramsArray)))));
 
-                var contextArgument = Argument(contextParameterName.IdentifierName());
+                // var contextArgument = Argument(contextParameterName.IdentifierName());
                 var parametersArgument = Argument(IdentifierName("parameterValues"));
 
                 // TODO Fix
@@ -718,7 +728,7 @@ namespace GraphQLinq.Scaffolding
 
                 var returnStatement = ReturnStatement(InvocationExpression(IdentifierName(baseMethodName))
                     .WithArgumentList(ArgumentList(SeparatedList(new List<ArgumentSyntax>
-                        { contextArgument, parametersArgument, argumentSyntax }))));
+                        { /*contextArgument,*/ parametersArgument, argumentSyntax }))));
 
                 // TODO refactor
                 var methodAttributeArguments = ParseAttributeArgumentList($"({nameof(GraphQLMethodAttribute.Name)} = \"{field.Name}\")");

@@ -10,19 +10,25 @@ namespace GraphQLinq
 {
     public class SubQueryContext // TODO naming
     {
+        private GraphContext _context;
 
-        public GraphCollectionQuery<T> BuildCollectionQuery<T>(GraphContext context, object[] parameterValues,
-            [CallerMemberName] string queryName = null)
+        public SubQueryContext(GraphContext context)
         {
-            var arguments = BuildDictionary(parameterValues, queryName);
-            return new GraphCollectionQuery<T, T>(context, this, queryName, isSubQuery:true) { Arguments = arguments }; // TODO rework prefix
+            _context = context;
         }
 
-        public GraphItemQuery<T> BuildItemQuery<T>(GraphContext context, object[] parameterValues,
+        public GraphCollectionQuery<T> BuildCollectionQuery<T>(object[] parameterValues,
             [CallerMemberName] string queryName = null)
         {
             var arguments = BuildDictionary(parameterValues, queryName);
-            return new GraphItemQuery<T, T>(context, this, queryName, isSubQuery: true)
+            return new GraphCollectionQuery<T, T>(_context, this, queryName, isSubQuery:true) { Arguments = arguments }; // TODO rework prefix
+        }
+
+        public GraphItemQuery<T> BuildItemQuery<T>(object[] parameterValues,
+            [CallerMemberName] string queryName = null)
+        {
+            var arguments = BuildDictionary(parameterValues, queryName);
+            return new GraphItemQuery<T, T>(_context, this, queryName, isSubQuery: true)
                 { Arguments = arguments }; // TODO rework prefix
         }
 

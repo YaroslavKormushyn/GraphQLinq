@@ -291,8 +291,6 @@ namespace GraphQLinq
 
 
             var parameterObjects = new List<object>();
-            //parameterObjects.Add(methodName);
-            parameterObjects.Add(_context);
             foreach (var parameter in parameters)
             {
                 switch (parameter)
@@ -314,30 +312,6 @@ namespace GraphQLinq
             
 
             GraphQuery result;
-            /*
-            if (isCollection)
-            {
-                var buildCollectionQueryBaseMethod = typeof(QueryBuilders)
-                    .GetMethod(nameof(QueryBuilders.BuildCollectionQuery));
-                var buildCollectionQueryGenericMethod = buildCollectionQueryBaseMethod?.MakeGenericMethod(genericType);
-                result = buildCollectionQueryGenericMethod?.Invoke(null,
-                    new object[]
-                    {
-                        _context, parameterObjects.ToArray(), genericType.GetGraphQLNameFromType(), methodName, true
-                    }) as GraphQuery;
-            }
-            else
-            {
-                var buildItemQueryBaseMethod = typeof(QueryBuilders)
-                    .GetMethod(nameof(QueryBuilders.BuildItemQuery));
-                var buildItemQueryGenericMethod = buildItemQueryBaseMethod?.MakeGenericMethod(genericType);
-                result = buildItemQueryGenericMethod?.Invoke(null,
-                    new object[]
-                    {
-                        _context, parameterObjects.ToArray(), genericType.GetGraphQLNameFromType(), methodName, true
-                    }) as GraphQuery;
-            }
-            */
 
             // Works but still requires retrieval of type name from generic
             // also passing subquery is required

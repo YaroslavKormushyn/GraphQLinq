@@ -18,7 +18,7 @@ namespace GraphQLinq
 
         public HttpClient HttpClient { get; }
 
-        protected GraphContext(HttpClient httpClient, SubQueryContext subQueryContext)
+        protected GraphContext(HttpClient httpClient)
         {
             if (httpClient == null)
             {
@@ -31,17 +31,14 @@ namespace GraphQLinq
             }
 
             HttpClient = httpClient;
-            this.SubQueryContext = subQueryContext;
         }
 
-        protected GraphContext(string baseUrl, string authorization, SubQueryContext subQueryContext)
+        protected GraphContext(string baseUrl, string authorization)
         {
             if (string.IsNullOrEmpty(baseUrl))
             {
                 throw new ArgumentException($"{nameof(baseUrl)} cannot be empty");
             }
-
-            this.SubQueryContext = subQueryContext;
 
             ownsHttpClient = true;
             HttpClient = new HttpClient();
