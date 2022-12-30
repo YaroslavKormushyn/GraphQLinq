@@ -266,29 +266,10 @@ namespace GraphQLinq
 
         private static string BuildNestedQuery(MethodCallExpression methodCallExpression)
         {
-            // TODO Rethink query structure to avoid runtime black magic and renaming
-            // Better idea, call method on query context? Does not need to be typed 
+            // TODO Still could use some improvement to avoid having to invoke an unknown method here. Move to SubQueryContext as helper?
+
             var methodName = methodCallExpression.Method.GetGraphQLNameFromMethod();
             var parameters = methodCallExpression.Arguments;
-
-            Type genericType;
-            var returnType = methodCallExpression.Method.ReturnType;
-            var isCollection = returnType.GetInterface(nameof(IEnumerable)) != null;
-
-            if (returnType.IsGenericType)
-            {
-                genericType = returnType.GetGenericTypeDefinition();
-
-                if (isCollection)
-                {
-                    genericType = returnType.GetGenericArguments().First();
-                }
-            }
-            else
-            {
-                genericType = returnType;
-            }
-
 
             var parameterObjects = new List<object>();
             foreach (var parameter in parameters)
@@ -309,17 +290,10 @@ namespace GraphQLinq
                         continue;
                 }
             }
-            
 
-            GraphQuery result;
+            var contextMethod = _context.SubQueryContext.GetQueryContextMethod(methodName);
 
-            // Works but still requires retrieval of type name from generic
-            // also passing subquery is required
-            _context.IsSubQuery = true;
-            var contextMethod = QueryBuilders.GetQueryContextMethod(_context.SubQueryContext, methodName);
-
-            result = contextMethod.Invoke(_context.SubQueryContext, parameterObjects.ToArray()) as GraphQuery;
-            _context.IsSubQuery = false;
+            var result = contextMethod.Invoke(_context.SubQueryContext, parameterObjects.ToArray()) as GraphQuery;
 
             var query = result?.Query;
 
@@ -483,35 +457,6 @@ namespace GraphQLinq
             var fieldsFromInclude = BuildSelectClauseForInclude(propertyType, restOfTheInclude, includeVariables, parameterPrefix, parameterIndex, depth + 1);
             fieldsFromInclude = $"{leftPadding}{includeName} {{{Environment.NewLine}{fieldsFromInclude}{Environment.NewLine}{leftPadding}}}";
             return fieldsFromInclude;
-        }
-    }
-
-    static class QueryBuilders
-    {
-        public  static GraphCollectionQuery<T> BuildCollectionQuery<T>(GraphContext context, SubQueryContext subQueryContext, object[] parameterValues, [CallerMemberName] string queryName = null, string prefix = null, bool isSubQuery = false)
-        {
-            var arguments = BuildDictionary(context, parameterValues, queryName, prefix);
-            return new GraphCollectionQuery<T, T>(context, subQueryContext, string.IsNullOrEmpty(prefix) ? queryName: prefix, isSubQuery) { Arguments = arguments };// TODO rework prefix
-        }
-
-        public static GraphItemQuery<T> BuildItemQuery<T>(GraphContext context, SubQueryContext subQueryContext, object[] parameterValues, [CallerMemberName] string queryName = null, string prefix = null, bool isSubQuery = false)
-        {
-            var arguments = BuildDictionary(context, parameterValues, queryName, prefix);
-            return new GraphItemQuery<T, T>(context, subQueryContext, string.IsNullOrEmpty(prefix) ? queryName : prefix, isSubQuery) { Arguments = arguments }; // TODO rework prefix
-        }
-
-        private static Dictionary<string, (string alternateKey, object value)> BuildDictionary(GraphContext context, object[] parameterValues, string queryName, string prefix = "")
-        {
-            var parameters = context.GetType().GetMethod(queryName, BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.Instance).GetParameters();
-            var arguments = parameters.Zip(parameterValues, (info, value) => new { info.Name, Value = value }).ToDictionary(arg => string.IsNullOrEmpty(prefix) ? arg.Name : prefix + arg.Name, arg => (string.IsNullOrEmpty(prefix) ? "" : arg.Name , arg.Value));
-            return arguments;
-        }
-
-        // TODO Improve?
-        public static MethodInfo GetQueryContextMethod(SubQueryContext context, string methodName)
-        {
-            return context.GetType().GetMethod(methodName,
-                BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.Instance);
         }
     }
 

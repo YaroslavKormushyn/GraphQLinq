@@ -24,7 +24,7 @@ namespace GraphQLinq.Scaffolding
         private Dictionary<string, string> renamedProperties = new();
         private readonly CodeGenerationOptions options;
 
-        private static readonly Dictionary<string, (string Name, Type type)> TypeMapping = new(StringComparer.InvariantCultureIgnoreCase)
+        private static readonly Dictionary<string, (string name, Type type)> TypeMapping = new(StringComparer.InvariantCultureIgnoreCase)
         {
             { "Int", new("int", typeof(int)) },
             { "Float", new("float", typeof(float)) },
@@ -275,7 +275,7 @@ namespace GraphQLinq.Scaffolding
                     {
                         (fieldTypeName, _) = GetSharpTypeName(arg.Type);
 
-                        var typeName = TypeMapping.Values.Any(tuple => tuple.Name == fieldTypeName) ? fieldTypeName : fieldTypeName.NormalizeIfNeeded(options);
+                        var typeName = TypeMapping.Values.Any(tuple => tuple.name == fieldTypeName) ? fieldTypeName : fieldTypeName.NormalizeIfNeeded(options);
 
                         var parameterSyntax = Parameter(Identifier(arg.Name)).WithType(ParseTypeName(typeName));
                         methodParameters.Add(parameterSyntax);
@@ -324,6 +324,7 @@ namespace GraphQLinq.Scaffolding
             return topLevelDeclaration;
         }
 
+        // TODO remove?
         private ClassDeclarationSyntax GenerateAttributeHelper(ClassDeclarationSyntax declaration, string helperMethodName, string graphQLAttributeTypeName ,string memberParameterName = "", string memberInfoGetMethod = "")
         {
             #region Names
@@ -615,8 +616,10 @@ namespace GraphQLinq.Scaffolding
 
                 var parametersArgument = Argument(IdentifierName("parameterValues"));
 
-                // TODO Fix
-                var argumentSyntax = Argument(InvocationExpression(MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,TypeOfExpression(GetMappedType(field.Type?.Name ?? field.Name).Item1.IdentifierName()), "GetGraphQLNameFromType".IdentifierName())/*LiteralExpression(SyntaxKind.StringLiteralExpression, Literal($"{field.Name}")*/ ));
+                var argumentSyntax = Argument(InvocationExpression(MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    TypeOfExpression(GetMappedType(GetTypeNameFromField(field)).name.IdentifierName()), // TODO refactor
+                    nameof(GraphQLAttributeExtensions.GetGraphQLNameFromType).IdentifierName())));
 
                 var returnStatement = ReturnStatement(InvocationExpression(IdentifierName(baseMethodName))
                                             .WithArgumentList(ArgumentList(SeparatedList(new List<ArgumentSyntax> { parametersArgument, argumentSyntax }))));
@@ -636,6 +639,16 @@ namespace GraphQLinq.Scaffolding
             topLevelDeclaration = topLevelDeclaration.AddMembers(declaration);
 
             return topLevelDeclaration;
+        }
+
+        // TODO Organize methods
+        private string GetTypeNameFromField(Field? field)
+        {
+            return field?.Type.Name ?? field?.Name ?? "";
+        }
+        private string? GetTypeNameFromFieldType(FieldType? fieldType)
+        {
+            return fieldType?.Name ?? GetTypeNameFromFieldType(fieldType?.OfType);
         }
 
         private SyntaxNode GenerateSubQueryContext(List<GraphqlType> classesWithArgFields)
@@ -663,13 +676,9 @@ namespace GraphQLinq.Scaffolding
                 .GroupBy(f => f.Name);
             var distinctFieldsWithArgs = fieldsWithArgs
                 .SelectMany(f => f.DistinctBy(g => (g.Args.SelectMany(s =>
-                        $"{(s.Type.Kind != TypeKind.List ? s.Type.Name : s.Type.OfType?.Name ?? s.Type.OfType?.OfType?.Name)}")
-                    .ToString()))); // TODO Improve distinct
+                        $"{GetTypeNameFromFieldType(s.Type)}")
+                    .ToString()))); // TODO refactor
 
-            /*foreach (var @class in classesWithArgFields)
-            {
-                foreach (var field in @class.Fields.Where(f => f.Args.Any()))
-                {*/
             foreach (var field in distinctFieldsWithArgs)
             {
                 var (fieldTypeName, fieldType) =
@@ -688,10 +697,6 @@ namespace GraphQLinq.Scaffolding
                 var initializer = InitializerExpression(SyntaxKind.ArrayInitializerExpression);
 
                 // TODO magic strings
-                /*var contextParameterName = "context";
-                // Requires context
-                methodParameters.Add(Parameter(contextParameterName.Identifier())
-                    .WithType(ParseTypeName(nameof(GraphContext))));*/
                 foreach (var arg in field.Args)
                 {
                     (fieldTypeName, fieldType) = GetSharpTypeName(arg.Type);
@@ -713,22 +718,20 @@ namespace GraphQLinq.Scaffolding
                     .WithVariables(SingletonSeparatedList(VariableDeclarator(Identifier("parameterValues"))
                         .WithInitializer(EqualsValueClause(paramsArray)))));
 
-                // var contextArgument = Argument(contextParameterName.IdentifierName());
                 var parametersArgument = Argument(IdentifierName("parameterValues"));
 
-                // TODO Fix
                 var argumentSyntax = Argument(InvocationExpression(
                         MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
-                            InvocationExpression(MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, ThisExpression(), nameof(Type.GetType).IdentifierName())),
+                            InvocationExpression(nameof(Type.GetType).IdentifierName()),
                             nameof(GraphQLAttributeExtensions.GetGraphQLNameFromMethod).IdentifierName()))
                     .AddArgumentListArguments(
                         Argument(InvocationExpression(Token(SyntaxKind.NameOfKeyword).Text.IdentifierName())
-                            .AddArgumentListArguments(Argument(GetMappedType(field.Type?.Name ?? field.Name).Item1
-                                .IdentifierName())))));
+                            .AddArgumentListArguments(Argument(GetMappedType(GetTypeNameFromField(field)).name
+                                .IdentifierName())))));// TODO Refactor
 
                 var returnStatement = ReturnStatement(InvocationExpression(IdentifierName(baseMethodName))
                     .WithArgumentList(ArgumentList(SeparatedList(new List<ArgumentSyntax>
-                        { /*contextArgument,*/ parametersArgument, argumentSyntax }))));
+                        { parametersArgument, argumentSyntax }))));
 
                 // TODO refactor
                 var methodAttributeArguments = ParseAttributeArgumentList($"({nameof(GraphQLMethodAttribute.Name)} = \"{field.Name}\")");
@@ -825,9 +828,9 @@ namespace GraphQLinq.Scaffolding
         }
 
 
-        private (string, Type?) GetMappedType(string name)
+        private (string name, Type? type) GetMappedType(string name)
         {
-            return TypeMapping.ContainsKey(name) ? TypeMapping[name] : new(name.NormalizeIfNeeded(options), null);
+            return TypeMapping.ContainsKey(name) ? TypeMapping[name] : (name.NormalizeIfNeeded(options), null);
         }
 
         private string EscapeIdentifierName(string name)

@@ -25,11 +25,10 @@ namespace GraphQLinq
         internal List<IncludeDetails> Includes { get; private set; } = new List<IncludeDetails>();
 
 
-        internal GraphQuery(GraphContext graphContext, SubQueryContext subQueryContext, string queryName, bool isSubQuery)
+        internal GraphQuery(GraphContext graphContext, string queryName, bool isSubQuery)
         {
             QueryName = queryName;
             context = graphContext;
-            subQueryContext = subQueryContext;
             _isSubQuery = isSubQuery;
 
             lazyQuery = new Lazy<GraphQLQuery>(() => isSubQuery ? queryBuilder.BuildSubQuery(this, Includes): queryBuilder.BuildQuery(this, Includes)); // TODO is subquery
@@ -50,7 +49,7 @@ namespace GraphQLinq
             var genericArguments = GetType().GetGenericArguments();
             var cloneType = genericQueryType.MakeGenericType(typeof(TR), genericArguments[1]);
 
-            var instance = (GraphQuery<TR>)Activator.CreateInstance(cloneType, context, subQueryContext, QueryName, _isSubQuery);
+            var instance = (GraphQuery<TR>)Activator.CreateInstance(cloneType, context, QueryName, _isSubQuery);
 
             instance.Arguments = Arguments;
             instance.Selector = Selector;
@@ -179,7 +178,7 @@ namespace GraphQLinq
 
     public abstract class GraphItemQuery<T> : GraphQuery<T>
     {
-        protected GraphItemQuery(GraphContext graphContext, SubQueryContext subQueryContext, string queryName, bool isSubQuery) : base(graphContext, subQueryContext, queryName, isSubQuery) { }
+        protected GraphItemQuery(GraphContext graphContext, string queryName, bool isSubQuery) : base(graphContext, queryName, isSubQuery) { }
 
         public GraphItemQuery<T> Include<TProperty>(Expression<Func<T, TProperty>> path)
         {
@@ -196,7 +195,7 @@ namespace GraphQLinq
 
     public abstract class GraphCollectionQuery<T> : GraphQuery<T>
     {
-        protected GraphCollectionQuery(GraphContext graphContext, SubQueryContext subQueryContext, string queryName, bool isSubQuery) : base(graphContext, subQueryContext, queryName, isSubQuery) { }
+        protected GraphCollectionQuery(GraphContext graphContext, string queryName, bool isSubQuery) : base(graphContext, queryName, isSubQuery) { }
 
         public abstract Task<IEnumerable<T>> ToEnumerable();
 
@@ -213,7 +212,7 @@ namespace GraphQLinq
 
     public class GraphItemQuery<T, TSource> : GraphItemQuery<T>
     {
-        public GraphItemQuery(GraphContext graphContext, SubQueryContext subQueryContext,  string queryName, bool isSubQuery = false) : base(graphContext, subQueryContext, queryName, isSubQuery)
+        public GraphItemQuery(GraphContext graphContext,  string queryName, bool isSubQuery = false) : base(graphContext, queryName, isSubQuery)
         {
         }
 
@@ -226,7 +225,7 @@ namespace GraphQLinq
 
     public class GraphCollectionQuery<T, TSource> : GraphCollectionQuery<T>
     {
-        public GraphCollectionQuery(GraphContext graphContext, SubQueryContext subQueryContext, string queryName, bool isSubQuery = false) : base(graphContext, subQueryContext, queryName, isSubQuery)
+        public GraphCollectionQuery(GraphContext graphContext, string queryName, bool isSubQuery = false) : base(graphContext, queryName, isSubQuery)
         {
         }
 

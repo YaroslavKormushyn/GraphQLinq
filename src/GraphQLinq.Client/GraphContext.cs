@@ -12,8 +12,6 @@ namespace GraphQLinq
     public class GraphContext : IDisposable
     {
         private readonly bool ownsHttpClient = false;
-        // TODO Temporary hack for passing subquery while testing options
-        public bool IsSubQuery = false;
         public SubQueryContext SubQueryContext;
 
         public HttpClient HttpClient { get; }
@@ -62,13 +60,13 @@ namespace GraphQLinq
         protected GraphCollectionQuery<T> BuildCollectionQuery<T>(object[] parameterValues, [CallerMemberName] string queryName = null)
         {
             var arguments = BuildDictionary(parameterValues, queryName);
-            return new GraphCollectionQuery<T, T>(this, SubQueryContext, queryName) { Arguments = arguments };
+            return new GraphCollectionQuery<T, T>(this, queryName) { Arguments = arguments };
         }
 
         protected GraphItemQuery<T> BuildItemQuery<T>(object[] parameterValues, [CallerMemberName] string queryName = null)
         {
             var arguments = BuildDictionary(parameterValues, queryName);
-            return new GraphItemQuery<T, T>(this, SubQueryContext, queryName) { Arguments = arguments };
+            return new GraphItemQuery<T, T>(this, queryName) { Arguments = arguments };
         }
 
         private Dictionary<string, (string alternateKey, object value)> BuildDictionary(object[] parameterValues, string queryName)

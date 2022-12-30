@@ -21,32 +21,33 @@ namespace GraphQLinq
             [CallerMemberName] string queryName = null)
         {
             var arguments = BuildDictionary(parameterValues, queryName);
-            return new GraphCollectionQuery<T, T>(_context, this, queryName, isSubQuery:true) { Arguments = arguments }; // TODO rework prefix
+            return new GraphCollectionQuery<T, T>(_context, queryName, isSubQuery:true) { Arguments = arguments };
         }
 
         public GraphItemQuery<T> BuildItemQuery<T>(object[] parameterValues,
             [CallerMemberName] string queryName = null)
         {
             var arguments = BuildDictionary(parameterValues, queryName);
-            return new GraphItemQuery<T, T>(_context, this, queryName, isSubQuery: true)
-                { Arguments = arguments }; // TODO rework prefix
+            return new GraphItemQuery<T, T>(_context, queryName, isSubQuery: true)
+                { Arguments = arguments };
         }
 
+        // TODO improve readability
         private Dictionary<string, (string alternateKey, object value)> BuildDictionary(object[] parameterValues, string queryName)
         {
             var parameters = GetType()
                 .GetMethod(queryName, BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.Instance)
-                .GetParameters().Where(p => p.ParameterType != typeof(GraphContext)); // TODO FIX
-            var arguments = parameters.Zip(parameterValues, (info, value) => new { info.Name, Value = value })
+                .GetParameters();
+
+            var arguments = parameters.Zip(parameterValues, (info, value) => new { info.Name, Value = value })// TODO still don't like the alternate name stuff here
                 .ToDictionary(arg =>  queryName + arg.Name,
                     arg => (arg.Name, arg.Value));
             return arguments;
         }
 
-        // TODO Improve?
-        public static MethodInfo GetQueryContextMethod(GraphContext context, string methodName)
+        public MethodInfo GetQueryContextMethod(string methodName)
         {
-            return context.GetType().GetMethod(methodName,
+            return GetType().GetMethod(methodName,
                 BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.Instance);
         }
     }
