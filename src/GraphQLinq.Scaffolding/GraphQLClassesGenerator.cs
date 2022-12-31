@@ -277,21 +277,9 @@ namespace GraphQLinq.Scaffolding
                         .WithBody(Block(returnStatement))
                         .AddAttributeLists(CreateAttributeList(field.Name));
 
-
                     declaration = declaration.AddMembers(methodDeclaration);
                 }
             }
-
-            // TODO Cleanup
-            declaration = GenerateAttributeHelper(declaration, CodeNameConstants.GetGraphQLNameFromType, nameof(GraphQLAttribute));
-            /*declaration = GenerateAttributeHelper(declaration, "GetGraphQLNameFromMember", nameof(GraphQLAttribute), "memberName", nameof(Type.GetProperty));*/
-            declaration = GenerateAttributeHelper(declaration, CodeNameConstants.GetGraphQLNameFromMethod, nameof(GraphQLAttribute), CodeNameConstants.MethodNameParameter, nameof(Type.GetMethod));
-            /*declaration = GenerateAttributeHelperExtensions(declaration, "GetGraphQLNameFromMember",
-                nameof(GraphQLAttribute), nameof(PropertyInfo));*/
-            declaration = GenerateAttributeHelperExtensions(declaration, CodeNameConstants.GetGraphQLNameFromMethod,
-                nameof(GraphQLAttribute), nameof(MemberInfo));
-            /*declaration = GenerateAttributeHelperExtensions(declaration, "GetGraphQLNameFromMethod",
-                nameof(GraphQLAttribute), nameof(MethodInfo));*/
 
             foreach (var @using in usings)
             {
@@ -303,138 +291,6 @@ namespace GraphQLinq.Scaffolding
             return topLevelDeclaration;
         }
 
-        // TODO remove?
-        private ClassDeclarationSyntax GenerateAttributeHelper(ClassDeclarationSyntax declaration, string helperMethodName, string graphQLAttributeTypeName ,string memberParameterName = "", string memberInfoGetMethod = "")
-        {
-            #region Names
-            var hasExtraParameter = !string.IsNullOrEmpty(memberParameterName);
-
-            // Method parameters
-            var typeParameterType = nameof(Type);
-            var typeParameterName = nameof(Type).ToLower();
-
-            // Variables
-            var typeVariableName = CodeNameConstants.TypeVariableName;
-            var memberInfoVariableName = CodeNameConstants.MemberInfoVariableName;
-            var attributeVariableName = nameof(System.Attribute).ToLower();
-
-            // Type names
-            var attributeTypeName = nameof(System.Attribute);
-
-            // Methods and properties
-            var attributeMethodName = nameof(System.Attribute.GetCustomAttribute);
-            var typeGetTypeMethodName = nameof(Type.GetType);
-            var namePropertyName = nameof(Type.Name);
-            #endregion
-
-            // Method with return type
-            // public static string <helperMethodName>(Type type)
-            var methodDeclaration = MethodDeclaration(SyntaxKind.StringKeyword.TypeSyntax(), helperMethodName)
-                .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.StaticKeyword));
-
-            // public static string <helperMethodName>(this object type)
-            var thisObjectParameterSyntax = Parameter(typeParameterName.Identifier())
-                .WithType(typeParameterType.TypeSyntax())
-                .WithModifiers(TokenList(Token(SyntaxKind.ThisKeyword)));
-
-            // string <memberParameterName>
-            var memberParameterSyntax = Parameter(memberParameterName.Identifier()).WithType(SyntaxKind.StringKeyword.TypeSyntax());
-
-            #region Variable declarations
-            // Type type
-            // var t = type;
-            var tTypeVariableDeclaration = CreateVariableDeclaration(typeVariableName, typeParameterName.IdentifierName());
-
-            //  var memberInfo = t;
-            var memberInfoTypeVariableDeclaration = CreateVariableDeclaration(memberInfoVariableName, typeVariableName.IdentifierName());
-            //  var memberInfo = t.<memberInfoGetMethod>(<memberParameterName>);
-            var memberInfoGetPropertyVariableDeclaration = CreateVariableDeclaration(memberInfoVariableName,
-                CreateSimpleMemberInvocation(typeVariableName, memberInfoGetMethod)
-                    .AddArgumentListArguments(Argument(memberParameterName.IdentifierName())));
-            #endregion
-
-            // Attribute.GetCustomAttribute(memberInfo, typeof(<graphQLAttributeTypeName>))
-            var invokeAttributeMethod = CreateSimpleMemberInvocation(attributeTypeName, attributeMethodName).
-                WithArgumentList(ArgumentList(SeparatedList(new List<ArgumentSyntax>
-                {
-                    Argument(memberInfoVariableName.IdentifierName()),
-                    Argument(TypeOfExpression(graphQLAttributeTypeName.IdentifierName())),
-                })));
-
-            var ifStatement = hasExtraParameter ?
-                //  if (memberInfo != null && Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLAttribute)) is GraphQLAttribute attribute) attribute.Name;
-                CreateAttributeIfStateWithIsPatternWithNullCheck(graphQLAttributeTypeName,
-                attributeVariableName, memberInfoVariableName, invokeAttributeMethod) :
-                //  if (Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLAttribute)) is GraphQLAttribute attribute) return attribute.Name;
-                CreateAttributeIfStateWithIsPattern(graphQLAttributeTypeName, attributeVariableName, invokeAttributeMethod);
-
-            // return memberInfo.Name;
-            var returnStatement = ReturnStatement(
-                CreateSimpleMemberAccess(memberInfoVariableName,
-                        namePropertyName));
-
-            // From Type
-            methodDeclaration = methodDeclaration.AddParameterListParameters(hasExtraParameter ? new[] { thisObjectParameterSyntax, memberParameterSyntax } : new[] { thisObjectParameterSyntax })
-                .WithBody(Block(
-                    tTypeVariableDeclaration,
-                    hasExtraParameter ? memberInfoGetPropertyVariableDeclaration : memberInfoTypeVariableDeclaration,
-                    ifStatement, 
-                    returnStatement));
-
-            return declaration.AddMembers(methodDeclaration);
-        }
-
-        private ClassDeclarationSyntax GenerateAttributeHelperExtensions(ClassDeclarationSyntax declaration, string helperMethodName, string graphQLAttributeTypeName, string parameterType)
-        {
-            #region Names
-            // Variables
-            var memberInfoVariableName = "memberInfo";
-            var attributeVariableName = nameof(System.Attribute).ToLower();
-
-            // Type names
-            var attributeTypeName = nameof(System.Attribute);
-
-            // Methods and properties
-            var attributeMethodName = nameof(System.Attribute.GetCustomAttribute);
-            var namePropertyName = nameof(Type.Name);
-            #endregion
-
-            // Method with return type
-            // public static string <helperMethodName>(this <parameterType> memberInfo)
-            var methodDeclaration = MethodDeclaration(SyntaxKind.StringKeyword.TypeSyntax(), helperMethodName)
-                .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.StaticKeyword));
-
-            var parameterSyntax = Parameter(memberInfoVariableName.Identifier())
-                .WithType(parameterType.TypeSyntax())
-                .WithModifiers(TokenList(Token(SyntaxKind.ThisKeyword)));
-
-            // Attribute.GetCustomAttribute(memberInfo, typeof(<graphQLAttributeTypeName>))
-            var invokeAttributeMethod = CreateSimpleMemberInvocation(attributeTypeName, attributeMethodName).
-                WithArgumentList(ArgumentList(SeparatedList(new List<ArgumentSyntax>
-                {
-                    Argument(memberInfoVariableName.IdentifierName()),
-                    Argument(TypeOfExpression(graphQLAttributeTypeName.IdentifierName())),
-                })));
-
-            var ifStatement = 
-                //  if (Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLAttribute)) is GraphQLAttribute attribute) return attribute.Name;
-                CreateAttributeIfStateWithIsPattern(graphQLAttributeTypeName, attributeVariableName, invokeAttributeMethod);
-
-            // return memberInfo.Name;
-            var returnStatement = ReturnStatement(
-                CreateSimpleMemberAccess(memberInfoVariableName,
-                        namePropertyName));
-
-            // From Type
-            methodDeclaration = methodDeclaration.AddParameterListParameters(parameterSyntax)
-                .WithBody(Block(
-                    ifStatement,
-                    returnStatement));
-
-            return declaration.AddMembers(methodDeclaration);
-        }
-
-        // TODO Organize methods
         private string GetTypeNameFromField(Field? field)
         {
             return field?.Type.Name ?? field?.Name ?? string.Empty;
@@ -444,50 +300,7 @@ namespace GraphQLinq.Scaffolding
             return fieldType?.Name ?? GetTypeNameFromFieldType(fieldType?.OfType);
         }
 
-        private AttributeListSyntax CreateAttributeList(string attributeName)
-        {
-            var methodAttributeArguments = ParseAttributeArgumentList($"({nameof(GraphQLAttribute.Name)} = \"{attributeName}\")");
-            var methodAttribute = Attribute(ParseName(GetSimplifiedName(typeof(GraphQLAttribute))), methodAttributeArguments); ;
-            return AttributeList(AttributeList().Attributes.Add(methodAttribute));
-        }
-
-        #region Attribute Helper Synxtax helpers
-        private IfStatementSyntax CreateAttributeIfStateWithIsPattern(string graphQLAttributeName, string attributeVariableName, ExpressionSyntax isExpression)
-        {
-            var namePropertyName = nameof(Type.Name);
-
-            // GraphQLAttribute attribute
-            var declarationPattern = DeclarationPattern(graphQLAttributeName.IdentifierName(),
-                SingleVariableDesignation(attributeVariableName.Identifier()));
-
-            return IfStatement(
-                IsPatternExpression(isExpression, declarationPattern)
-                    .WithIsKeyword(Token(SyntaxKind.IsKeyword)),
-                ReturnStatement(CreateSimpleMemberAccess(attributeVariableName, namePropertyName)));
-        }
-
-        private IfStatementSyntax CreateAttributeIfStateWithIsPatternWithNullCheck(string graphQLAttributeName, string attributeVariableName, string nullableVariableName, ExpressionSyntax isExpression)
-        {
-            var namePropertyName = nameof(Type.Name);
-
-            // memberInfo != null && 
-            var nullableVariableBinaryExpression = BinaryExpression(SyntaxKind.NotEqualsExpression,
-                nullableVariableName.IdentifierName(),
-                LiteralExpression(SyntaxKind.NullLiteralExpression));
-
-            // GraphQLAttribute attribute
-            var declarationPattern = DeclarationPattern(graphQLAttributeName.IdentifierName(),
-                SingleVariableDesignation(attributeVariableName.Identifier()));
-
-            return IfStatement(
-                BinaryExpression(SyntaxKind.LogicalAndExpression,
-                    nullableVariableBinaryExpression,
-                    IsPatternExpression(isExpression, declarationPattern)
-                        .WithIsKeyword(Token(SyntaxKind.IsKeyword))),
-                ReturnStatement(CreateSimpleMemberAccess(attributeVariableName, namePropertyName))
-            );
-        }
-
+        #region Synxtax helpers
         private LocalDeclarationStatementSyntax CreateVariableDeclaration(string variableName,
             ExpressionSyntax initializer)
         {
@@ -505,6 +318,12 @@ namespace GraphQLinq.Scaffolding
                 target,
                 member
             ));
+        }
+        private AttributeListSyntax CreateAttributeList(string attributeName)
+        {
+            var methodAttributeArguments = ParseAttributeArgumentList($"({nameof(GraphQLAttribute.Name)} = \"{attributeName}\")");
+            var methodAttribute = Attribute(ParseName(GetSimplifiedName(typeof(GraphQLAttribute))), methodAttributeArguments); ;
+            return AttributeList(AttributeList().Attributes.Add(methodAttribute));
         }
 
         private MemberAccessExpressionSyntax CreateSimpleMemberAccess(string target, string member)
@@ -685,7 +504,7 @@ namespace GraphQLinq.Scaffolding
                     initializer = initializer.AddExpressions(IdentifierName(arg.Name));
                 }
 
-                var paramsArray = ArrayCreationExpression(ArrayType(SyntaxKind.ObjectKeyword.TypeSyntax()).AddRankSpecifiers(ArrayRankSpecifier(SingletonSeparatedList<ExpressionSyntax>(OmittedArraySizeExpression()))), initializer);
+                var paramsArray = ArrayCreationExpression(SyntaxKind.ObjectKeyword.ArrayTypeSyntax(), initializer);
 
                 var parametersDeclaration = CreateVariableDeclaration(CodeNameConstants.ParameterValuesVariableName, paramsArray);
 

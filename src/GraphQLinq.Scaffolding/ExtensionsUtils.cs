@@ -74,6 +74,15 @@ namespace GraphQLinq.Scaffolding
         internal static IdentifierNameSyntax IdentifierName(this string identifier) => SyntaxFactory.IdentifierName(identifier);
         internal static TypeSyntax TypeSyntax(this string type) => ParseTypeName(type);
         internal static TypeSyntax TypeSyntax(this SyntaxKind predefinedType) => PredefinedType(Token(predefinedType));
-        // internal static TypeSyntax IdentifierName(this SyntaxKind syntaxKind) => SyntaxFactory.IdentifierName(Token(syntaxKind));
+
+        internal static ArrayTypeSyntax ArrayTypeSyntax(this SyntaxKind type, int? size = null)
+        {
+            return ArrayType(type.TypeSyntax())
+                .AddRankSpecifiers(ArrayRankSpecifier(SingletonSeparatedList<ExpressionSyntax>( size == null ? OmittedArraySizeExpression() : LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(size.Value)))));
+        }
+        internal static SeparatedSyntaxList<T> ToSyntaxList<T>(this T expressionSyntax) where T: SyntaxNode
+        {
+            return SingletonSeparatedList(expressionSyntax);
+        }
     }
 }
