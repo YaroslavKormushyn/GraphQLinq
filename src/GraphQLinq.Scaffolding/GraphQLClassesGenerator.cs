@@ -14,6 +14,7 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using System.Linq.Expressions;
 using System.Reflection;
 using GraphQLinq.Attributes;
+using Scaffolding;
 
 namespace GraphQLinq.Scaffolding
 {
@@ -51,7 +52,7 @@ namespace GraphQLinq.Scaffolding
 
         public GraphQLClassesGenerator(CodeGenerationOptions options)
         {
-            var attributeNamespace = typeof(GraphQLMemberAttribute).Namespace;
+            var attributeNamespace = typeof(GraphQLAttribute).Namespace;
             var reflectionNamespace = typeof(PropertyInfo).Namespace;
             if (attributeNamespace != null) usings.Add(attributeNamespace);
             if (reflectionNamespace != null) usings.Add(reflectionNamespace);
@@ -107,7 +108,7 @@ namespace GraphQLinq.Scaffolding
 
             AnsiConsole.WriteLine("Scaffolding GraphQLSubQueryContext ...");
             var graphSubQueryContext = GenerateSubQueryContext(classesWithArgFields);
-            FormatAndWriteToFile(graphSubQueryContext, $"{options.ContextName}SubQueryContext");
+            FormatAndWriteToFile(graphSubQueryContext, $"{options.ContextName}{CodeNameConstants.SubQueryContext}");
 
             return $"{options.ContextName}Context";
         }
@@ -136,14 +137,9 @@ namespace GraphQLinq.Scaffolding
 
             var className = classInfo.Name.NormalizeIfNeeded(options);
 
-            // TODO Refactor
-            var classAttributeArguments = ParseAttributeArgumentList($"({nameof(GraphQLTypeAttribute.Name)} = \"{classInfo.Name}\")");
-            var classAttribute = Attribute(ParseName(GetSimplifiedName(typeof(GraphQLTypeAttribute))), classAttributeArguments);
-            var classAttributes = AttributeList(AttributeList().Attributes.Add(classAttribute));
-
             var declaration = ClassDeclaration(className)
                 .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.PartialKeyword))
-                .AddAttributeLists(classAttributes);
+                .AddAttributeLists(CreateAttributeList(classInfo.Name));
 
             foreach (var @interface in classInfo.Interfaces ?? new List<GraphqlType>())
             {
@@ -156,30 +152,22 @@ namespace GraphQLinq.Scaffolding
 
                 if (fieldName == className)
                 {
-                    fieldName = $"{fieldName}Prop"; // TODO better naming
+                    fieldName = $"{fieldName}{CodeNameConstants.PropertyPostfix}"; // TODO better naming
                     renamedProperties.Add(className, fieldName);
-                }
-
-                // TODO refactor
-                var memberAttributeArguments = ParseAttributeArgumentList($"({nameof(GraphQLMemberAttribute.Name)} = \"{field.Name}\")");
-                var memberAttribute = Attribute(ParseName(GetSimplifiedName(typeof(GraphQLMemberAttribute))), memberAttributeArguments); ;
-                var memberAttributes = AttributeList(AttributeList().Attributes.Add(memberAttribute));
-
-                if (fieldName == className)
-                {
-                    declaration = declaration.ReplaceToken(declaration.Identifier, Identifier($"{className}Type"));
                 }
 
                 var (fieldTypeName, fieldType) = GetSharpTypeName(field.Type);
 
+                var typeSyntax = ParseTypeName(fieldTypeName);
+
                 if (NeedsNullable(fieldType, field.Type))
                 {
-                    fieldTypeName += "?";
+                    typeSyntax = NullableType(typeSyntax);
                 }
 
-                var property = PropertyDeclaration(ParseTypeName(fieldTypeName), fieldName)
-                                            .AddModifiers(Token(SyntaxKind.PublicKeyword))
-                                            .AddAttributeLists(memberAttributes);
+                var property = PropertyDeclaration(typeSyntax, fieldName)
+                                    .AddModifiers(Token(SyntaxKind.PublicKeyword))
+                                    .AddAttributeLists(CreateAttributeList(field.Name));
 
                 property = property.AddAccessorListAccessors(AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
                                    .WithSemicolonToken(semicolonToken));
@@ -242,11 +230,6 @@ namespace GraphQLinq.Scaffolding
 
         private SyntaxNode GenerateQueryExtensions(List<GraphqlType> classesWithArgFields)
         {
-            var exceptionMessage = Literal("This method is not implemented. It exists solely for query purposes.");
-            var argumentListSyntax = ArgumentList(SingletonSeparatedList(Argument(LiteralExpression(SyntaxKind.StringLiteralExpression, exceptionMessage))));
-
-            var notImplemented = ThrowStatement(ObjectCreationExpression(IdentifierName("NotImplementedException"), argumentListSyntax, null));
-
             var topLevelDeclaration = RoslynUtilities.GetTopLevelNode(options.Namespace);
 
             var declaration = ClassDeclaration("QueryExtensions")
@@ -281,11 +264,6 @@ namespace GraphQLinq.Scaffolding
                         methodParameters.Add(parameterSyntax);
                     }
 
-                    // TODO refactor
-                    var methodAttributeArguments = ParseAttributeArgumentList($"({nameof(GraphQLMethodAttribute.Name)} = \"{field.Name}\")");
-                    var methodAttribute = Attribute(ParseName(GetSimplifiedName(typeof(GraphQLMethodAttribute))), methodAttributeArguments); ;
-                    var methodAttributes = AttributeList(AttributeList().Attributes.Add(methodAttribute));
-
                     // Get the property name that might be renamed
                     var returnPropertyName = identifierName.Equals(fieldName, StringComparison.OrdinalIgnoreCase) && renamedProperties.ContainsKey(fieldName) ? renamedProperties[fieldName] : fieldName;
 
@@ -297,22 +275,23 @@ namespace GraphQLinq.Scaffolding
 
                     methodDeclaration = methodDeclaration.AddParameterListParameters(methodParameters.ToArray())
                         .WithBody(Block(returnStatement))
-                        .AddAttributeLists(methodAttributes);
+                        .AddAttributeLists(CreateAttributeList(field.Name));
 
 
                     declaration = declaration.AddMembers(methodDeclaration);
                 }
             }
 
-            declaration = GenerateAttributeHelper(declaration, "GetGraphQLNameFromType", nameof(GraphQLTypeAttribute));
-            declaration = GenerateAttributeHelper(declaration, "GetGraphQLNameFromMember", nameof(GraphQLMemberAttribute), "memberName", nameof(Type.GetProperty));
-            declaration = GenerateAttributeHelper(declaration, "GetGraphQLNameFromMethod", nameof(GraphQLMethodAttribute), "methodName", nameof(Type.GetMethod));
-            declaration = GenerateAttributeHelperExtensions(declaration, "GetGraphQLNameFromMember",
-                nameof(GraphQLMemberAttribute), nameof(PropertyInfo));
-            declaration = GenerateAttributeHelperExtensions(declaration, "GetGraphQLNameFromMethod",
-                nameof(GraphQLMethodAttribute), nameof(MemberInfo));
-            declaration = GenerateAttributeHelperExtensions(declaration, "GetGraphQLNameFromMethod",
-                nameof(GraphQLMethodAttribute), nameof(MethodInfo));
+            // TODO Cleanup
+            declaration = GenerateAttributeHelper(declaration, CodeNameConstants.GetGraphQLNameFromType, nameof(GraphQLAttribute));
+            /*declaration = GenerateAttributeHelper(declaration, "GetGraphQLNameFromMember", nameof(GraphQLAttribute), "memberName", nameof(Type.GetProperty));*/
+            declaration = GenerateAttributeHelper(declaration, CodeNameConstants.GetGraphQLNameFromMethod, nameof(GraphQLAttribute), CodeNameConstants.MethodNameParameter, nameof(Type.GetMethod));
+            /*declaration = GenerateAttributeHelperExtensions(declaration, "GetGraphQLNameFromMember",
+                nameof(GraphQLAttribute), nameof(PropertyInfo));*/
+            declaration = GenerateAttributeHelperExtensions(declaration, CodeNameConstants.GetGraphQLNameFromMethod,
+                nameof(GraphQLAttribute), nameof(MemberInfo));
+            /*declaration = GenerateAttributeHelperExtensions(declaration, "GetGraphQLNameFromMethod",
+                nameof(GraphQLAttribute), nameof(MethodInfo));*/
 
             foreach (var @using in usings)
             {
@@ -328,17 +307,15 @@ namespace GraphQLinq.Scaffolding
         private ClassDeclarationSyntax GenerateAttributeHelper(ClassDeclarationSyntax declaration, string helperMethodName, string graphQLAttributeTypeName ,string memberParameterName = "", string memberInfoGetMethod = "")
         {
             #region Names
-            // TODO magic strings
             var hasExtraParameter = !string.IsNullOrEmpty(memberParameterName);
 
             // Method parameters
             var typeParameterType = nameof(Type);
             var typeParameterName = nameof(Type).ToLower();
-            var objectParameterTypeName = GetSimplifiedName(typeof(object));
 
             // Variables
-            var typeVariableName = "t";
-            var memberInfoVariableName = "memberInfo";
+            var typeVariableName = CodeNameConstants.TypeVariableName;
+            var memberInfoVariableName = CodeNameConstants.MemberInfoVariableName;
             var attributeVariableName = nameof(System.Attribute).ToLower();
 
             // Type names
@@ -354,11 +331,8 @@ namespace GraphQLinq.Scaffolding
             // public static string <helperMethodName>(Type type)
             var methodDeclaration = MethodDeclaration(SyntaxKind.StringKeyword.TypeSyntax(), helperMethodName)
                 .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.StaticKeyword));
-            /*var typeParameterSyntax = Parameter(typeParameterName.Identifier())
-                                        .WithType(typeParameterType.TypeSyntax());
 
             // public static string <helperMethodName>(this object type)
-            var thisMethodDeclaration = methodDeclaration;*/
             var thisObjectParameterSyntax = Parameter(typeParameterName.Identifier())
                 .WithType(typeParameterType.TypeSyntax())
                 .WithModifiers(TokenList(Token(SyntaxKind.ThisKeyword)));
@@ -400,20 +374,14 @@ namespace GraphQLinq.Scaffolding
                         namePropertyName));
 
             // From Type
-            methodDeclaration = methodDeclaration/*.AddParameterListParameters(hasExtraParameter ? new[] { typeParameterSyntax, memberParameterSyntax}: new[] { typeParameterSyntax} )
-                .WithBody(Block(
-                    tTypeVariableDeclaration, 
-                    hasExtraParameter ? memberInfoGetPropertyVariableDeclaration : memberInfoTypeVariableDeclaration, 
-                    ifStatement, 
-                    returnStatement));
-            thisMethodDeclaration = thisMethodDeclaration*/.AddParameterListParameters(hasExtraParameter ? new[] { thisObjectParameterSyntax, memberParameterSyntax } : new[] { thisObjectParameterSyntax })
+            methodDeclaration = methodDeclaration.AddParameterListParameters(hasExtraParameter ? new[] { thisObjectParameterSyntax, memberParameterSyntax } : new[] { thisObjectParameterSyntax })
                 .WithBody(Block(
                     tTypeVariableDeclaration,
                     hasExtraParameter ? memberInfoGetPropertyVariableDeclaration : memberInfoTypeVariableDeclaration,
                     ifStatement, 
                     returnStatement));
 
-            return declaration.AddMembers(methodDeclaration/*, thisMethodDeclaration*/);
+            return declaration.AddMembers(methodDeclaration);
         }
 
         private ClassDeclarationSyntax GenerateAttributeHelperExtensions(ClassDeclarationSyntax declaration, string helperMethodName, string graphQLAttributeTypeName, string parameterType)
@@ -464,6 +432,23 @@ namespace GraphQLinq.Scaffolding
                     returnStatement));
 
             return declaration.AddMembers(methodDeclaration);
+        }
+
+        // TODO Organize methods
+        private string GetTypeNameFromField(Field? field)
+        {
+            return field?.Type.Name ?? field?.Name ?? string.Empty;
+        }
+        private string? GetTypeNameFromFieldType(FieldType? fieldType)
+        {
+            return fieldType?.Name ?? GetTypeNameFromFieldType(fieldType?.OfType);
+        }
+
+        private AttributeListSyntax CreateAttributeList(string attributeName)
+        {
+            var methodAttributeArguments = ParseAttributeArgumentList($"({nameof(GraphQLAttribute.Name)} = \"{attributeName}\")");
+            var methodAttribute = Attribute(ParseName(GetSimplifiedName(typeof(GraphQLAttribute))), methodAttributeArguments); ;
+            return AttributeList(AttributeList().Attributes.Add(methodAttribute));
         }
 
         #region Attribute Helper Synxtax helpers
@@ -552,7 +537,6 @@ namespace GraphQLinq.Scaffolding
             var baseInitializer = ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
                 .AddArgumentListArguments(Argument(IdentifierName("baseUrl")),
                     Argument(LiteralExpression(SyntaxKind.StringLiteralExpression, Literal(""))));
-                                                              //Argument(InvocationExpression(ObjectCreationExpression($"{options.ContextName}SubQueryContext".IdentifierName()).AddArgumentListArguments(Argument(ThisExpression())))));
 
             var baseUrlConstructorDeclaration = ConstructorDeclaration(className)
                                     .AddModifiers(Token(SyntaxKind.PublicKeyword))
@@ -562,7 +546,6 @@ namespace GraphQLinq.Scaffolding
 
             var baseHttpClientInitializer = ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
                 .AddArgumentListArguments(Argument(IdentifierName("httpClient")));
-                    //Argument(InvocationExpression(ObjectCreationExpression($"{options.ContextName}SubQueryContext".IdentifierName()).AddArgumentListArguments(Argument(ThisExpression())))));
 
             var httpClientConstructorDeclaration = ConstructorDeclaration(className)
                                     .AddModifiers(Token(SyntaxKind.PublicKeyword))
@@ -618,7 +601,7 @@ namespace GraphQLinq.Scaffolding
 
                 var argumentSyntax = Argument(InvocationExpression(MemberAccessExpression(
                     SyntaxKind.SimpleMemberAccessExpression,
-                    TypeOfExpression(GetMappedType(GetTypeNameFromField(field)).name.IdentifierName()), // TODO refactor
+                    TypeOfExpression(GetMappedType(GetTypeNameFromField(field)).name.IdentifierName()), // TODO Don't like that we need to get the mapped type, from the type name and then the name property. 
                     nameof(GraphQLAttributeExtensions.GetGraphQLNameFromType).IdentifierName())));
 
                 var returnStatement = ReturnStatement(InvocationExpression(IdentifierName(baseMethodName))
@@ -641,51 +624,41 @@ namespace GraphQLinq.Scaffolding
             return topLevelDeclaration;
         }
 
-        // TODO Organize methods
-        private string GetTypeNameFromField(Field? field)
-        {
-            return field?.Type.Name ?? field?.Name ?? "";
-        }
-        private string? GetTypeNameFromFieldType(FieldType? fieldType)
-        {
-            return fieldType?.Name ?? GetTypeNameFromFieldType(fieldType?.OfType);
-        }
-
         private SyntaxNode GenerateSubQueryContext(List<GraphqlType> classesWithArgFields)
         {
             var topLevelDeclaration = RoslynUtilities.GetTopLevelNode(options.Namespace)
-                .AddUsings(UsingDirective(IdentifierName("GraphQLinq")));
+                .AddUsings(UsingDirective(IdentifierName(nameof(GraphQLinq))));
 
-            var className = $"{options.ContextName}SubQueryContext"; // TODO improve
+            var className = $"{options.ContextName}{CodeNameConstants.SubQueryContext}";
             var declaration = ClassDeclaration(className)
                 .AddModifiers(Token(SyntaxKind.PublicKeyword))
-                .AddBaseListTypes(SimpleBaseType(ParseTypeName("SubQueryContext")));
+                .AddBaseListTypes(SimpleBaseType(ParseTypeName(CodeNameConstants.SubQueryContext)));
 
             var baseInitializer = ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
-                .AddArgumentListArguments(Argument(IdentifierName("context")));
+                .AddArgumentListArguments(Argument(IdentifierName(CodeNameConstants.ContextParameterName)));
 
             var baseUrlConstructorDeclaration = ConstructorDeclaration(className)
                 .AddModifiers(Token(SyntaxKind.PublicKeyword))
-                .AddParameterListParameters(Parameter(Identifier("context")).WithType(ParseTypeName(nameof(GraphContext))))
+                .AddParameterListParameters(Parameter(Identifier(CodeNameConstants.ContextParameterName)).WithType(ParseTypeName(nameof(GraphContext))))
                 .WithInitializer(baseInitializer)
                 .WithBody(Block());
 
             declaration = declaration.AddMembers(baseUrlConstructorDeclaration);
 
             var fieldsWithArgs = classesWithArgFields.SelectMany(c => c.Fields).Where(f => f.Args.Any())
-                .GroupBy(f => f.Name);
+                .GroupBy(f => f.Name); // Group methods by name to find duplicates
             var distinctFieldsWithArgs = fieldsWithArgs
                 .SelectMany(f => f.DistinctBy(g => (g.Args.SelectMany(s =>
                         $"{GetTypeNameFromFieldType(s.Type)}")
-                    .ToString()))); // TODO refactor
+                    .ToString()))); // Find the distinct methods based arguments in group (name does not have to be unique as there can be overloads)
 
             foreach (var field in distinctFieldsWithArgs)
             {
                 var (fieldTypeName, fieldType) =
                     GetSharpTypeName(field.Type.Kind == TypeKind.NonNull ? field.Type.OfType : field.Type, true);
 
-                var baseMethodName = fieldTypeName.Replace("GraphItemQuery", "BuildItemQuery")
-                    .Replace("GraphCollectionQuery", "BuildCollectionQuery");
+                var baseMethodName = fieldTypeName.Replace( CodeNameConstants.GraphItemQueryTypeName, CodeNameConstants.BuildItemQueryMethodName)
+                    .Replace(CodeNameConstants.GraphCollectionQueryTypeName, CodeNameConstants.BuildCollectionQueryMethodName);
 
                 var fieldName = field.Name.NormalizeIfNeeded(options);
 
@@ -696,29 +669,27 @@ namespace GraphQLinq.Scaffolding
 
                 var initializer = InitializerExpression(SyntaxKind.ArrayInitializerExpression);
 
-                // TODO magic strings
                 foreach (var arg in field.Args)
                 {
                     (fieldTypeName, fieldType) = GetSharpTypeName(arg.Type);
 
-                    if (NeedsNullable(fieldType, arg.Type))
+                    var typeSyntax = ParseTypeName(fieldTypeName);
+                    if (NeedsNullable(fieldType, field.Type))
                     {
-                        fieldTypeName += "?";
+                        typeSyntax = NullableType(typeSyntax);
                     }
 
-                    var parameterSyntax = Parameter(Identifier(arg.Name)).WithType(ParseTypeName(fieldTypeName));
+                    var parameterSyntax = Parameter(arg.Name.Identifier()).WithType(typeSyntax);
                     methodParameters.Add(parameterSyntax);
 
                     initializer = initializer.AddExpressions(IdentifierName(arg.Name));
                 }
 
-                var paramsArray = ArrayCreationExpression(ArrayType(ParseTypeName("object[]")), initializer);
+                var paramsArray = ArrayCreationExpression(ArrayType(SyntaxKind.ObjectKeyword.TypeSyntax()).AddRankSpecifiers(ArrayRankSpecifier(SingletonSeparatedList<ExpressionSyntax>(OmittedArraySizeExpression()))), initializer);
 
-                var parametersDeclaration = LocalDeclarationStatement(VariableDeclaration(IdentifierName("var"))
-                    .WithVariables(SingletonSeparatedList(VariableDeclarator(Identifier("parameterValues"))
-                        .WithInitializer(EqualsValueClause(paramsArray)))));
+                var parametersDeclaration = CreateVariableDeclaration(CodeNameConstants.ParameterValuesVariableName, paramsArray);
 
-                var parametersArgument = Argument(IdentifierName("parameterValues"));
+                var parametersArgument = Argument(CodeNameConstants.ParameterValuesVariableName.IdentifierName());
 
                 var argumentSyntax = Argument(InvocationExpression(
                         MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
@@ -727,20 +698,15 @@ namespace GraphQLinq.Scaffolding
                     .AddArgumentListArguments(
                         Argument(InvocationExpression(Token(SyntaxKind.NameOfKeyword).Text.IdentifierName())
                             .AddArgumentListArguments(Argument(GetMappedType(GetTypeNameFromField(field)).name
-                                .IdentifierName())))));// TODO Refactor
+                                .IdentifierName())))));// TODO Don't like it, improve readability. Maybe split some thing or move to helper
 
-                var returnStatement = ReturnStatement(InvocationExpression(IdentifierName(baseMethodName))
+                var returnStatement = ReturnStatement(InvocationExpression(baseMethodName.IdentifierName())
                     .WithArgumentList(ArgumentList(SeparatedList(new List<ArgumentSyntax>
                         { parametersArgument, argumentSyntax }))));
 
-                // TODO refactor
-                var methodAttributeArguments = ParseAttributeArgumentList($"({nameof(GraphQLMethodAttribute.Name)} = \"{field.Name}\")");
-                var methodAttribute = Attribute(ParseName(GetSimplifiedName(typeof(GraphQLMethodAttribute))), methodAttributeArguments); ;
-                var methodAttributes = AttributeList(AttributeList().Attributes.Add(methodAttribute));
-
                 methodDeclaration = methodDeclaration.AddParameterListParameters(methodParameters.ToArray())
                     .WithBody(Block(parametersDeclaration, returnStatement))
-                    .AddAttributeLists(methodAttributes);
+                    .AddAttributeLists(CreateAttributeList(field.Name));
 
                 declaration = declaration.AddMembers(methodDeclaration);
             }

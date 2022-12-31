@@ -20,11 +20,9 @@ namespace GraphQLinq
         internal const string ResultAlias = "result";
         internal const string QueryExtensionsTypeName = "QueryExtensions";
 
-        private static GraphContext _context;
-
-        // TODO FIX, Should only exist withing query run
-        private static List<KeyValuePair<string, (string alternateKey, object value)>>
-            additionalArguments = new List<KeyValuePair<string, (string alternateKey, object value)>>();
+        private GraphContext _context;
+        private readonly List<KeyValuePair<string, (string alternateKey, object value)>>
+            _additionalArguments = new List<KeyValuePair<string, (string alternateKey, object value)>>();
 
         public GraphQLQuery BuildQuery(GraphQuery<T> graphQuery, List<IncludeDetails> includes)
         {
@@ -92,7 +90,7 @@ namespace GraphQLinq
 
             var combinedArguments = new List<KeyValuePair<string, (string alternateKey, object value)>>();
             combinedArguments.AddRange(passedArguments);
-            combinedArguments.AddRange(additionalArguments);
+            combinedArguments.AddRange(_additionalArguments);
 
             queryVariables = combinedArguments.ToDictionary(pair => pair.Key, pair => pair.Value.value);
 
@@ -179,7 +177,7 @@ namespace GraphQLinq
 
             var combinedArguments = new List<KeyValuePair<string, (string alternateKey, object value)>>();
             combinedArguments.AddRange(passedArguments);
-            combinedArguments.AddRange(additionalArguments);
+            combinedArguments.AddRange(_additionalArguments);
 
             queryVariables = combinedArguments.ToDictionary(pair => pair.Key, pair => pair.Value.value);
 
@@ -229,7 +227,7 @@ namespace GraphQLinq
             return selectClause;
         }
 
-        private static string BuildMemberAccessSelectClauseForNestedQueries(Expression body, string selectClause,
+        private string BuildMemberAccessSelectClauseForNestedQueries(Expression body, string selectClause,
             string padding, out string aliasName)
         {
             switch (body)
@@ -248,7 +246,7 @@ namespace GraphQLinq
                     return selectClause;
                 case MemberExpression memberExpression:
                     var s=
-                        BuildMemberAccessSelectClauseForNestedQueriesMember(memberExpression, "", padding, memberExpression.Member.Name);
+                        BuildMemberAccessSelectClauseForNestedQueriesMember(memberExpression, padding, memberExpression.Member.Name);
                     aliasName = memberExpression.Member.Name;
                     selectClause = $"{selectClause}{(!string.IsNullOrEmpty(selectClause) ? Environment.NewLine : string.Empty)}{s}";
                     return selectClause;
@@ -264,10 +262,8 @@ namespace GraphQLinq
             }
         }
 
-        private static string BuildNestedQuery(MethodCallExpression methodCallExpression)
+        private string BuildNestedQuery(MethodCallExpression methodCallExpression)
         {
-            // TODO Still could use some improvement to avoid having to invoke an unknown method here. Move to SubQueryContext as helper?
-
             var methodName = methodCallExpression.Method.GetGraphQLNameFromMethod();
             var parameters = methodCallExpression.Arguments;
 
@@ -291,19 +287,17 @@ namespace GraphQLinq
                 }
             }
 
-            var contextMethod = _context.SubQueryContext.GetQueryContextMethod(methodName);
-
-            var result = contextMethod.Invoke(_context.SubQueryContext, parameterObjects.ToArray()) as GraphQuery;
+            var result = _context.SubQueryContext.InvokeContextMethod(methodName, parameterObjects.ToArray());
 
             var query = result?.Query;
 
             if (result?.Arguments != null)
-                additionalArguments.AddRange(result.Arguments.Where(pair => pair.Value.value != null));
+                _additionalArguments.AddRange(result.Arguments.Where(pair => pair.Value.value != null));
 
             return query;
         }
 
-        public static string BuildMemberAccessSelectClauseForNestedQueriesMethodCall(MethodCallExpression body,
+        public string BuildMemberAccessSelectClauseForNestedQueriesMethodCall(MethodCallExpression body,
             string selectClause, string padding, out string alias)
         {
             var typeMember = body.Arguments.OfType<MemberExpression>().First();
@@ -323,13 +317,13 @@ namespace GraphQLinq
             return selectClause;
         }
 
-        private static string BuildMemberAccessSelectClauseForNestedQueriesMember(MemberExpression body, string selectClause,
+        private string BuildMemberAccessSelectClauseForNestedQueriesMember(MemberExpression body,
             string padding, string alias)
         {
             return BuildMemberAccessSelectClause(body, "", padding, alias);
         }
 
-        private static string BuildMemberAccessSelectClauseForNestedQueriesNew(NewExpression body, string selectClause,
+        private string BuildMemberAccessSelectClauseForNestedQueriesNew(NewExpression body, string selectClause,
             string padding, out string alias)
         {
             alias = body.Members?.FirstOrDefault()?.GetGraphQLNameFromMethod();
@@ -363,6 +357,7 @@ namespace GraphQLinq
 
         private static string Merge(string left, string right) 
         {
+            // TODO better merge mechanic, or better even: avoid needing it
             var closingBracket = "}";
             var indexOfLastBracketLeft = left.LastIndexOf(closingBracket);
             var indexOfFirstNewLineRight = right.IndexOf(Environment.NewLine) + Environment.NewLine.Length;

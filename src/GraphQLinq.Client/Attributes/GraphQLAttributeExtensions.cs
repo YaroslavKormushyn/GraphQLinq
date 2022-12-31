@@ -12,7 +12,7 @@ namespace GraphQLinq.Attributes
         {
             var t = type;
             var memberInfo = t;
-            if (Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLTypeAttribute)) is GraphQLTypeAttribute attribute)
+            if (Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLAttribute)) is GraphQLAttribute attribute)
                 return attribute.Name;
             return memberInfo.Name;
         }
@@ -21,7 +21,7 @@ namespace GraphQLinq.Attributes
         {
             var t = type;
             var memberInfo = t.GetProperty(memberName);
-            if (memberInfo != null && Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLMemberAttribute)) is GraphQLMemberAttribute attribute)
+            if (memberInfo != null && Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLAttribute)) is GraphQLAttribute attribute)
                 return attribute.Name;
             return memberInfo.Name;
         }
@@ -30,28 +30,28 @@ namespace GraphQLinq.Attributes
         {
             var t = type;
             var memberInfo = t.GetMethod(methodName);
-            if (memberInfo != null && Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLMethodAttribute)) is GraphQLMethodAttribute attribute)
+            if (memberInfo != null && Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLAttribute)) is GraphQLAttribute attribute)
                 return attribute.Name;
             return memberInfo.Name;
         }
 
         public static string GetGraphQLNameFromMember(this PropertyInfo memberInfo)
         {
-            if (Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLMemberAttribute)) is GraphQLMemberAttribute attribute)
+            if (Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLAttribute)) is GraphQLAttribute attribute)
                 return attribute.Name;
             return memberInfo.Name;
         }
 
         public static string GetGraphQLNameFromMethod(this MemberInfo memberInfo)
         {
-            if (Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLMethodAttribute)) is GraphQLMethodAttribute attribute)
+            if (Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLAttribute)) is GraphQLAttribute attribute)
                 return attribute.Name;
             return memberInfo.Name;
         }
 
         public static string GetGraphQLNameFromMethod(this MethodInfo memberInfo)
         {
-            if (Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLMethodAttribute)) is GraphQLMethodAttribute attribute)
+            if (Attribute.GetCustomAttribute(memberInfo, typeof(GraphQLAttribute)) is GraphQLAttribute attribute)
                 return attribute.Name;
             return memberInfo.Name;
         }
@@ -59,12 +59,9 @@ namespace GraphQLinq.Attributes
         public static string GetGraphQLNameFromMember(this ParameterInfo memberInfo)
         {
             var t = memberInfo.ParameterType;
-            if (Attribute.GetCustomAttribute(t, typeof(GraphQLMemberAttribute)) is GraphQLMemberAttribute attribute)
+            if (Attribute.GetCustomAttribute(t, typeof(GraphQLAttribute)) is GraphQLAttribute attribute)
                 return attribute.Name;
-            else if (Attribute.GetCustomAttribute(t, typeof(GraphQLTypeAttribute)) is GraphQLTypeAttribute typeAttr)
-                return typeAttr.Name;
-            else if (Attribute.GetCustomAttribute(t, typeof(GraphQLMethodAttribute)) is GraphQLMethodAttribute methAttr)
-                return methAttr.Name;
+          
             return memberInfo.Name;
         }
     }

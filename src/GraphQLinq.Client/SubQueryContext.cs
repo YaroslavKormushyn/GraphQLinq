@@ -32,16 +32,15 @@ namespace GraphQLinq
                 { Arguments = arguments };
         }
 
-        // TODO improve readability
         private Dictionary<string, (string alternateKey, object value)> BuildDictionary(object[] parameterValues, string queryName)
         {
             var parameters = GetType()
                 .GetMethod(queryName, BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.Instance)
                 .GetParameters();
 
-            var arguments = parameters.Zip(parameterValues, (info, value) => new { info.Name, Value = value })// TODO still don't like the alternate name stuff here
-                .ToDictionary(arg =>  queryName + arg.Name,
-                    arg => (arg.Name, arg.Value));
+            var arguments = parameters.Zip(parameterValues, (info, value) => new { info.Name, Value = value }) // TODO still don't like the alternate name stuff here
+                .ToDictionary(arg =>  queryName + arg.Name, // Prefix name so it doesn't collide with the main query parameter value variable name
+                    arg => (arg.Name, arg.Value)); // Store the original key because we need it in the query as parameter name
             return arguments;
         }
 
@@ -49,6 +48,11 @@ namespace GraphQLinq
         {
             return GetType().GetMethod(methodName,
                 BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.Instance);
+        }
+
+        public GraphQuery InvokeContextMethod(string methodName, object[] parameters)
+        {
+            return GetQueryContextMethod(methodName).Invoke(_context.SubQueryContext, parameters.ToArray()) as GraphQuery;
         }
     }
 }

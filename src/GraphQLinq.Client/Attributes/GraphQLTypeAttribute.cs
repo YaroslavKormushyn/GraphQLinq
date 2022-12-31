@@ -2,8 +2,8 @@ using System;
 
 namespace GraphQLinq.Attributes
 {
-    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
-    public class GraphQLTypeAttribute : Attribute
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method | AttributeTargets.Property)]
+    public class GraphQLAttribute : Attribute
     {
         public string Name { get; set; }
     }
