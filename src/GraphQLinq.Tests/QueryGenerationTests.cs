@@ -131,7 +131,7 @@ namespace GraphQLinq.Tests
         [Test]
         public void SelectingListOfListNestedPropertyQueryShouldNotIncludeListProperties()
         {
-            var agency = hslGraphContext.Agency("232919").Include(a => a.routes.Select(route => route.trips.Select(trip => trip.geometry)));
+            var agency = hslGraphContext.Agency("232919").Include(a => a.Routes.Select(route => route.Trips.Select(trip => trip.Geometry)));
 
             Assert.That(agency.Query, Does.Not.Contain("capacity").And.Not.Contain("count").And.Not.Contain("item"));
         }

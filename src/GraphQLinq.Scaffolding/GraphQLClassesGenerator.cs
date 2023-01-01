@@ -291,17 +291,17 @@ namespace GraphQLinq.Scaffolding
             return topLevelDeclaration;
         }
 
-        private string GetTypeNameFromField(Field? field)
+        private static string GetTypeNameFromField(Field? field)
         {
             return field?.Type.Name ?? field?.Name ?? string.Empty;
         }
-        private string? GetTypeNameFromFieldType(FieldType? fieldType)
+        private static string? GetTypeNameFromFieldType(FieldType? fieldType)
         {
             return fieldType?.Name ?? GetTypeNameFromFieldType(fieldType?.OfType);
         }
 
         #region Synxtax helpers
-        private LocalDeclarationStatementSyntax CreateVariableDeclaration(string variableName,
+        private static LocalDeclarationStatementSyntax CreateVariableDeclaration(string variableName,
             ExpressionSyntax initializer)
         {
             return LocalDeclarationStatement(VariableDeclaration(Token(SyntaxKind.VarKeyword).Text.IdentifierName())
@@ -326,7 +326,7 @@ namespace GraphQLinq.Scaffolding
             return AttributeList(AttributeList().Attributes.Add(methodAttribute));
         }
 
-        private MemberAccessExpressionSyntax CreateSimpleMemberAccess(string target, string member)
+        private static MemberAccessExpressionSyntax CreateSimpleMemberAccess(string target, string member)
         {
             return MemberAccessExpression(
                 SyntaxKind.SimpleMemberAccessExpression,
@@ -417,11 +417,11 @@ namespace GraphQLinq.Scaffolding
                                             .WithInitializer(EqualsValueClause(paramsArray)))));
 
                 var parametersArgument = Argument(IdentifierName("parameterValues"));
-
+                var argumentSyntax = Argument(LiteralExpression(SyntaxKind.StringLiteralExpression, Literal($"{field.Name}")));/*
                 var argumentSyntax = Argument(InvocationExpression(MemberAccessExpression(
                     SyntaxKind.SimpleMemberAccessExpression,
                     TypeOfExpression(GetMappedType(GetTypeNameFromField(field)).name.IdentifierName()), // TODO Don't like that we need to get the mapped type, from the type name and then the name property. 
-                    nameof(GraphQLAttributeExtensions.GetGraphQLNameFromType).IdentifierName())));
+                    nameof(GraphQLAttributeExtensions.GetGraphQLNameFromType).IdentifierName())));*/
 
                 var returnStatement = ReturnStatement(InvocationExpression(IdentifierName(baseMethodName))
                                             .WithArgumentList(ArgumentList(SeparatedList(new List<ArgumentSyntax> { parametersArgument, argumentSyntax }))));

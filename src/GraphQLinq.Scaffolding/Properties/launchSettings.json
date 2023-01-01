@@ -2,7 +2,7 @@
   "profiles": {
     "Scaffolding": {
       "commandName": "Project",
-      "commandLineArgs": "http://fftbsfidi.westeurope.cloudapp.azure.com:8080/v1/graphql -o ..\\..\\..\\..\\..\\..\\..\\PokeApiGraphQLinq.Infrastructure\\Poke -n Poke"
+      "commandLineArgs": "https://api.digitransit.fi/routing/v1/routers/finland/index/graphql -o ..\\..\\..\\..\\GraphQLinq.Generated\\HSL -n HSL"
     }
   }
 }

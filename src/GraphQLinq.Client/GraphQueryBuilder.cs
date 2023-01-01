@@ -88,11 +88,16 @@ namespace GraphQLinq
             var isScalarQuery = string.IsNullOrEmpty(selectClause);
             selectClause = Environment.NewLine + selectClause + Environment.NewLine;
 
-            var combinedArguments = new List<KeyValuePair<string, (string alternateKey, object value)>>();
+            // TODO verfify
+            /*var combinedArguments = new List<KeyValuePair<string, (string alternateKey, object value)>>();
             combinedArguments.AddRange(passedArguments);
-            combinedArguments.AddRange(_additionalArguments);
+            combinedArguments.AddRange(_additionalArguments);*/
 
-            queryVariables = combinedArguments.ToDictionary(pair => pair.Key, pair => pair.Value.value);
+            //queryVariables = combinedArguments.ToDictionary(pair => pair.Key, pair => pair.Value.value);
+            foreach (var additionalArgument in _additionalArguments.ToDictionary(pair => pair.Key, pair => pair.Value.value))
+            {
+                queryVariables.Add(additionalArgument.Key, additionalArgument.Value);
+            }
 
             var queryParameters = passedArguments.Any() ? $"({string.Join(", ", passedArguments.Select(pair => $"{(!string.IsNullOrEmpty(pair.Value.alternateKey)? pair.Value.alternateKey: pair.Key)}: ${pair.Key}"))})" : "";
             var queryParameterTypes = queryVariables.Any() ? $"({string.Join(", ", queryVariables.Select(pair => $"${pair.Key}: {pair.Value.GetType().ToGraphQlType()}"))})" : "";

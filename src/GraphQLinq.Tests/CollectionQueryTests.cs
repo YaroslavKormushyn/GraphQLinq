@@ -10,12 +10,13 @@ namespace GraphQLinq.Tests
     [Category("Integration tests")]
     class CollectionQueryTests
     {
-        readonly HslGraphContext hslGraphContext = new HslGraphContext("https://api.digitransit.fi/routing/v1/routers/finland/index/graphql");
+        //readonly HslGraphContext hslGraphContext = new HslGraphContext("https://api.digitransit.fi/routing/v1/routers/finland/index/graphql");
+        readonly QueryContext hslGraphContext = new QueryContext("https://api.digitransit.fi/routing/v1/routers/finland/index/graphql");
 
         [Test]
         public async Task SelectingNamesReturnsListOfNames()
         {
-            var query = hslGraphContext.Stations().Select(l => l.name);
+            var query = hslGraphContext.Stations(null, null, string.Empty, null).Select(l => l.Name);
 
             var names = await query.ToEnumerable();
 
@@ -29,42 +30,42 @@ namespace GraphQLinq.Tests
         [Test]
         public async Task SelectingNamesDoesNotReturnStops()
         {
-            var query = hslGraphContext.Stations();
+            var query = hslGraphContext.Stations(null, null, string.Empty, null);
 
             var stations = await query.ToEnumerable();
 
-            Assert.That(stations, Is.All.Matches<Stop>(l => l.stops == null));
+            Assert.That(stations, Is.All.Matches<Stop>(l => l.Stops == null));
         }
         
         [Test]
         public async Task SelectingNamesAndIncludingStopsReturnsStops()
         {
-            var query = hslGraphContext.Stations().Include(s => s.stops);
+            var query = hslGraphContext.Stations(null, null, string.Empty, null).Include(s => s.Stops);
 
             var stations = await query.ToEnumerable();
 
-            Assert.That(stations, Is.All.Matches<Stop>(s => s.stops != null));
+            Assert.That(stations, Is.All.Matches<Stop>(s => s.Stops != null));
         }
 
         [Test]
         public async Task SelectingNamesAndStopsReturnsStops()
         {
-            var query = hslGraphContext.Stations().Select(location => new { location.name, location.stops });
+            var query = hslGraphContext.Stations(null, null, string.Empty, null).Select(location => new { location.Name, location.Stops });
 
             var stations = await query.ToEnumerable();
 
-            var stationsWithNullStops = stations.Where(s => s.stops == null).ToList();
+            var stationsWithNullStops = stations.Where(s => s.Stops == null).ToList();
             CollectionAssert.IsEmpty(stationsWithNullStops);
         }
 
         [Test]
         public async Task SelectingNamesWithAliasAndStopsReturnsStopsAndNames()
         {
-            var query = hslGraphContext.Stations().Select(location => new { StationName = location.name, location.stops });
+            var query = hslGraphContext.Stations(null, null, string.Empty, null).Select(location => new { StationName = location.Name, location.Stops });
 
             var stations = await query.ToEnumerable();
 
-            var stationsWithNullStops = stations.Where(s => s.stops == null).ToList();
+            var stationsWithNullStops = stations.Where(s => s.Stops == null).ToList();
             var stationsWithNullCity = stations.Where(s => s.StationName == null).ToList();
 
             Assert.Multiple(() =>

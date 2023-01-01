@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using GraphQLinq.Attributes;
 
 public partial class Location : Node
 {
@@ -10,6 +11,7 @@ public partial class Location : Node
     public string provinceState { get; set; }
     public string addressLine2 { get; set; }
     public string address { get; set; }
+    [GraphQL(Name = "country")]
     public string Country { get; set; }
     public float latitude { get; set; }
     public string locationId { get; set; }

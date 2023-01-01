@@ -1,10 +1,16 @@
 namespace HSL
 {
+    using System;
     using System.Collections.Generic;
+    using GraphQLinq.Attributes;
+    using System.Reflection;
 
-    public partial class stopAtDistanceConnection
+    [GraphQL(Name = "stopAtDistanceConnection")]
+    public partial class StopAtDistanceConnection
     {
-        public List<stopAtDistanceEdge> edges { get; set; }
-        public PageInfo pageInfo { get; set; }
+        [GraphQL(Name = "edges")]
+        public List<StopAtDistanceEdge> Edges { get; set; }
+        [GraphQL(Name = "pageInfo")]
+        public PageInfo PageInfo { get; set; }
     }
 }

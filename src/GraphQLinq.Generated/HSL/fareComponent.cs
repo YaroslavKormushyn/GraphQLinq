@@ -1,12 +1,20 @@
 namespace HSL
 {
+    using System;
     using System.Collections.Generic;
+    using GraphQLinq.Attributes;
+    using System.Reflection;
 
-    public partial class fareComponent
+    [GraphQL(Name = "fareComponent")]
+    public partial class FareComponent
     {
-        public string fareId { get; set; }
-        public string currency { get; set; }
-        public int cents { get; set; }
-        public List<Route> routes { get; set; }
+        [GraphQL(Name = "fareId")]
+        public string FareId { get; set; }
+        [GraphQL(Name = "currency")]
+        public string Currency { get; set; }
+        [GraphQL(Name = "cents")]
+        public int? Cents { get; set; }
+        [GraphQL(Name = "routes")]
+        public List<Route> Routes { get; set; }
     }
 }

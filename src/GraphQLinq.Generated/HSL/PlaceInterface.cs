@@ -1,9 +1,14 @@
 namespace HSL
 {
+    using System;
+    using System.Collections.Generic;
+    using GraphQLinq.Attributes;
+    using System.Reflection;
+
     public interface PlaceInterface
     {
-        string id { get; set; }
-        float lat { get; set; }
-        float lon { get; set; }
+        string Id { get; set; }
+        float? Lat { get; set; }
+        float? Lon { get; set; }
     }
 }

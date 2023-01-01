@@ -1,20 +1,38 @@
 namespace HSL
 {
+    using System;
     using System.Collections.Generic;
+    using GraphQLinq.Attributes;
+    using System.Reflection;
 
+    [GraphQL(Name = "Pattern")]
     public partial class Pattern : Node
     {
-        public string id { get; set; }
-        public Route route { get; set; }
-        public int directionId { get; set; }
-        public string name { get; set; }
-        public string code { get; set; }
-        public string headsign { get; set; }
-        public List<Trip> trips { get; set; }
-        public List<Trip> tripsForDate { get; set; }
-        public List<Stop> stops { get; set; }
-        public List<Coordinates> geometry { get; set; }
-        public string semanticHash { get; set; }
-        public List<Alert> alerts { get; set; }
+        [GraphQL(Name = "id")]
+        public string Id { get; set; }
+        [GraphQL(Name = "route")]
+        public Route Route { get; set; }
+        [GraphQL(Name = "directionId")]
+        public int? DirectionId { get; set; }
+        [GraphQL(Name = "name")]
+        public string Name { get; set; }
+        [GraphQL(Name = "code")]
+        public string Code { get; set; }
+        [GraphQL(Name = "headsign")]
+        public string Headsign { get; set; }
+        [GraphQL(Name = "trips")]
+        public List<Trip> Trips { get; set; }
+        [GraphQL(Name = "tripsForDate")]
+        public List<Trip> TripsForDate { get; set; }
+        [GraphQL(Name = "stops")]
+        public List<Stop> Stops { get; set; }
+        [GraphQL(Name = "geometry")]
+        public List<Coordinates> Geometry { get; set; }
+        [GraphQL(Name = "patternGeometry")]
+        public Geometry PatternGeometry { get; set; }
+        [GraphQL(Name = "semanticHash")]
+        public string SemanticHash { get; set; }
+        [GraphQL(Name = "alerts")]
+        public List<Alert> Alerts { get; set; }
     }
 }

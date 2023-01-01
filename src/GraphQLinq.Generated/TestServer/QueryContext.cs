@@ -3,8 +3,11 @@ namespace TestServer
     using GraphQLinq;
     using System;
     using System.Collections.Generic;
+    using GraphQLinq.Attributes;
+    using System.Reflection;
+    using System.Net.Http;
 
-    public class QueryContext : GraphContext
+    public partial class QueryContext : GraphContext
     {
         public QueryContext() : this("http://localhost:10000/graphql")
         {
@@ -12,6 +15,12 @@ namespace TestServer
 
         public QueryContext(string baseUrl) : base(baseUrl, "")
         {
+            SubQueryContext = new QuerySubQueryContext(this);
+        }
+
+        public QueryContext(HttpClient httpClient) : base(httpClient)
+        {
+            SubQueryContext = new QuerySubQueryContext(this);
         }
 
         public GraphItemQuery<User> UserTemporaryFixForNullable(int? id)

@@ -1,9 +1,18 @@
 namespace HSL
 {
-    public partial class placeAtDistance : Node
+    using System;
+    using System.Collections.Generic;
+    using GraphQLinq.Attributes;
+    using System.Reflection;
+
+    [GraphQL(Name = "placeAtDistance")]
+    public partial class PlaceAtDistance : Node
     {
-        public string id { get; set; }
-        public PlaceInterface place { get; set; }
-        public int distance { get; set; }
+        [GraphQL(Name = "id")]
+        public string Id { get; set; }
+        [GraphQL(Name = "place")]
+        public PlaceInterface Place { get; set; }
+        [GraphQL(Name = "distance")]
+        public int? Distance { get; set; }
     }
 }

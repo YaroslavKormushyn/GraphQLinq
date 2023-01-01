@@ -9,8 +9,8 @@ namespace HSL
         public Agency agency { get; set; }
         public List<Stop> stops { get; set; }
         public List<Stop> stopsByBbox { get; set; }
-        public stopAtDistanceConnection stopsByRadius { get; set; }
-        public placeAtDistanceConnection nearest { get; set; }
+        public StopAtDistanceConnection stopsByRadius { get; set; }
+        public PlaceAtDistanceConnection nearest { get; set; }
         public DepartureRow departureRow { get; set; }
         public Stop stop { get; set; }
         public Stop station { get; set; }
@@ -25,7 +25,7 @@ namespace HSL
         public List<Cluster> clusters { get; set; }
         public Cluster cluster { get; set; }
         public List<Alert> alerts { get; set; }
-        public serviceTimeRange serviceTimeRange { get; set; }
+        public ServiceTimeRange serviceTimeRange { get; set; }
         public List<BikeRentalStation> bikeRentalStations { get; set; }
         public BikeRentalStation bikeRentalStation { get; set; }
         public List<BikePark> bikeParks { get; set; }

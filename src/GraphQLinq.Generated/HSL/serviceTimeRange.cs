@@ -1,8 +1,16 @@
 namespace HSL
 {
-    public partial class serviceTimeRange
+    using System;
+    using System.Collections.Generic;
+    using GraphQLinq.Attributes;
+    using System.Reflection;
+
+    [GraphQL(Name = "serviceTimeRange")]
+    public partial class ServiceTimeRange
     {
-        public long start { get; set; }
-        public long end { get; set; }
+        [GraphQL(Name = "start")]
+        public long? Start { get; set; }
+        [GraphQL(Name = "end")]
+        public long? End { get; set; }
     }
 }

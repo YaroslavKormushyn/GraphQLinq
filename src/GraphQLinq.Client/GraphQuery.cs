@@ -16,7 +16,6 @@ namespace GraphQLinq
     public abstract class GraphQuery<T> : GraphQuery
     {
         public readonly GraphContext context;
-        public readonly SubQueryContext subQueryContext;
         private readonly bool _isSubQuery;
         private Lazy<GraphQLQuery> lazyQuery;
         private readonly GraphQueryBuilder<T> queryBuilder = new GraphQueryBuilder<T>();
@@ -31,7 +30,7 @@ namespace GraphQLinq
             context = graphContext;
             _isSubQuery = isSubQuery;
 
-            lazyQuery = new Lazy<GraphQLQuery>(() => isSubQuery ? queryBuilder.BuildSubQuery(this, Includes): queryBuilder.BuildQuery(this, Includes)); // TODO is subquery
+            lazyQuery = new Lazy<GraphQLQuery>(() => isSubQuery ? queryBuilder.BuildSubQuery(this, Includes): queryBuilder.BuildQuery(this, Includes));
         }
 
         public override string ToString()
