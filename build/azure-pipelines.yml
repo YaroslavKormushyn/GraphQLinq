@@ -6,7 +6,8 @@ pool:
 variables:
   projectRoot: 'src'
   solution: '$(projectRoot)/*.sln'
-  project: '$(projectRoot)/GraphQLinq.Client/*.csproj'
+  clientProject: '$(projectRoot)/GraphQLinq.Client/*.csproj'
+  scaffoldingProject: '$(projectRoot)/GraphQLinq.Scaffolding/*.csproj'
   packagePath: '$(projectRoot)/output'
   buildPlatform: 'Any CPU'
   buildConfiguration: 'Release'
@@ -21,7 +22,7 @@ steps:
 - task: DotNetCoreCLI@2
   displayName: Build
   inputs:
-    projects: '$(project)'
+    projects: '$(clientProject);$(scaffoldingProject)'
     arguments: '--no-restore --configuration $(buildConfiguration)'
 
 - task: NuGetCommand@2
