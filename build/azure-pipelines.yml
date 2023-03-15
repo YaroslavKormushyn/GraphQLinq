@@ -16,16 +16,20 @@ steps:
 - task: NuGetToolInstaller@1
 
 - task: NuGetCommand@2
+  displayName: Restore
   inputs:
     restoreSolution: '$(solution)'
 
 - task: DotNetCoreCLI@2
   displayName: Build
   inputs:
-    projects: '$(clientProject);$(scaffoldingProject)'
+    projects: |
+      $(clientProject)
+      $(scaffoldingProject)
     arguments: '--no-restore --configuration $(buildConfiguration)'
 
 - task: NuGetCommand@2
+  displayName: 'Push to NuGet'
   inputs:
     command: 'push'
     packagesToPush: '$(packagePath)/*.nupkg;!$(packagePath)/*.symbols.nupkg'
