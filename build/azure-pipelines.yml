@@ -1,0 +1,31 @@
+trigger: none
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  projectRoot: 'src'
+  solution: '$(projectRoot)/*.sln'
+  packagePath: '$(projectRoot)/output'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+
+steps:
+- task: NuGetToolInstaller@1
+
+- task: NuGetCommand@2
+  inputs:
+    restoreSolution: '$(solution)'
+
+- task: DotNetCoreCLI@2
+  displayName: Build
+  inputs:
+    projects: '$(solution)'
+    arguments: '--no-restore --configuration $(buildConfiguration)'
+
+- task: NuGetCommand@2
+  inputs:
+    command: 'push'
+    packagesToPush: '$(packagePath)/*.nupkg;!$(packagePath)/*.symbols.nupkg'
+    nuGetFeedType: 'internal'
+    publishVstsFeed: 'cfec38c0-6822-4ee7-b569-72808b0404ab'
