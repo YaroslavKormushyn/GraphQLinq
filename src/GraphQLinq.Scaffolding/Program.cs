@@ -116,15 +116,16 @@ namespace GraphQLinq.Scaffolding
                 new Option<string>(new []{ "--output", "-o" }, () => "", "Output folder"),
                 new Option<string>(new []{ "--namespace", "-n" }, () => "","Namespace of generated classes"),
                 new Option<string>(new []{ "--context", "-c" }, () => "Query","Name of the generated context classes"),
+                new Option<string>(new []{ "--bearer" }, () => "","Sets a Bearer token for auth"),
                 new Option<bool>(new []{ "--normalize", "-a" }, () => true,"Normalize casing (PascalCase)"),
             };
 
-            generate.Handler = CommandHandler.Create<Uri, string, string, string, bool, IConsole>(HandleGenerate);
+            generate.Handler = CommandHandler.Create<Uri, string, string, string, string, bool, IConsole>(HandleGenerate);
 
             await generate.InvokeAsync(args);
         }
 
-        private static async Task HandleGenerate(Uri endpoint, string output, string @namespace, string context, bool normalize, IConsole console)
+        private static async Task HandleGenerate(Uri endpoint, string output, string @namespace, string context, string bearer, bool normalize, IConsole console)
         {
             //var webClient = new WebClient();
             //webClient.Headers.Add("Content-Type", "application/json");
@@ -140,6 +141,11 @@ namespace GraphQLinq.Scaffolding
             {
                 AnsiConsole.WriteLine("Running introspection query ...");
                 using var httpClient = new HttpClient();
+                if (!string.IsNullOrEmpty(bearer))
+                {
+                    httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearer);
+                }
+                
                 using var responseMessage = await httpClient.PostAsJsonAsync(endpoint, new { query = IntrospectionQuery });
 
                 AnsiConsole.WriteLine("Reading and deserializing schema information ...");
