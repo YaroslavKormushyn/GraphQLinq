@@ -6,6 +6,7 @@ pool:
 variables:
   projectRoot: 'src'
   solution: '$(projectRoot)/*.sln'
+  project: '$(projectRoot)/GraphQLinq.Client/*.csproj'
   packagePath: '$(projectRoot)/output'
   buildPlatform: 'Any CPU'
   buildConfiguration: 'Release'
@@ -20,7 +21,7 @@ steps:
 - task: DotNetCoreCLI@2
   displayName: Build
   inputs:
-    projects: '$(solution)'
+    projects: '$(project)'
     arguments: '--no-restore --configuration $(buildConfiguration)'
 
 - task: NuGetCommand@2
