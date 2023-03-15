@@ -10,13 +10,13 @@
     <Authors>Giorgi Dalakishvili</Authors>
     <Copyright>Copyright (c) 2017 - 2022 Giorgi Dalakishvili</Copyright>
     <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
-    <AssemblyVersion>1.1.0.1</AssemblyVersion>
-    <FileVersion>1.1.0.1</FileVersion>
+    <AssemblyVersion>1.1.0.2</AssemblyVersion>
+    <FileVersion>1.1.0.2</FileVersion>
     <RepositoryType>git</RepositoryType>
     
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(Configuration)'=='Release'">True</ContinuousIntegrationBuild>
-    <Version>1.1.0-beta1</Version>
+    <Version>1.1.0-beta2</Version>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageProjectUrl>https://github.com/Giorgi/GraphQLinq/</PackageProjectUrl>
     <PackageIcon>Icon.png</PackageIcon>
