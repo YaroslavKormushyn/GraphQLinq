@@ -18,9 +18,9 @@
     <PackageIcon>Icon.png</PackageIcon>
     <PackageReadmeFile>README-NuGet.md</PackageReadmeFile>
     <Description>Strongly typed GraphQL queries with LINQ query syntax.</Description>
-    <Version>1.1.0-beta</Version>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
-    <FileVersion>1.1.0.0</FileVersion>
+    <Version>1.1.0-beta1</Version>
+    <AssemblyVersion>1.1.0.1</AssemblyVersion>
+    <FileVersion>1.1.0.1</FileVersion>
     <PackageId>GraphQLinq.Client</PackageId>
     <Product>GraphQLinq.Client</Product>
     <PackageTags>GraphQL LINQ json api</PackageTags>
